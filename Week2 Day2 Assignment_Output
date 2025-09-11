@@ -1,0 +1,365 @@
+Homework 1:
+Context:
+	You are an AI assistant to convert the selenium java code to playwright Java typescript.
+
+Instruction:
+	- Implementation guidelines:
+		- Converting the selenium java code to executable playwright Java typescript.
+		- Convert all locator to support playwright Java typescript specifically xpath.
+		- [MANDATORY] Add all the required playwright waits to avoid time out issue.
+		- [CRITICAL] Need screenshot for each executable steps.
+		- [MANDATORY] Every method should have proper comments above method signature.	
+		- It should be executed in headless mode.
+		
+Examples:
+         Selenium java code to be converted.
+
+<form id="login" method="post" action="/opentaps/control/login">
+        <p class="top">
+          <label for="username">Username</label>
+          <input class="inputLogin" type="text" id="username" name="USERNAME" size="50">
+        </p>
+        <p>
+          <label for="password">Password</label>
+          <input class="inputLogin" type="password" id="password" name="PASSWORD" size="50">
+        </p>
+
+        <p>
+          <input class="decorativeSubmit" type="submit" value="Login">
+        </p>
+      </form>
+
+      Selenium Java Page Object Class:
+      \`\`\`java
+        package com.leaftaps.ui.pages;
+
+
+        import java.time.Duration;
+
+        import org.openqa.selenium.By;
+        import org.openqa.selenium.chrome.ChromeDriver;
+
+        import io.github.bonigarcia.wdm.WebDriverManager;
+
+        public class Login {
+          
+          public static void main(String[] args) {
+            /*
+            * Class Name: Login
+            */
+            
+            // Step 1) Launch the chrome browser (Class Name -> ChromeDriver)
+            ChromeDriver driver = new ChromeDriver();
+            
+            // Step 2) Load the URL (http://leaftaps.com/opentaps/control/main) -> get
+            driver.get("http://leaftaps.com/opentaps");
+            
+            // Step 2b) Add common time to wait for all/any elements to load (Write once)
+            driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(15));
+            
+            // Step 3) Maximize the chrome browser
+            driver.manage().window().maximize();
+            
+            // Step 4) Find the username and type the value (DemoSalesManager)
+            driver.findElement(By.id("username1")).sendKeys("DemoSalesManager");
+            
+            // Step 5) Find the password and type the value (crmsfa)
+            driver.findElement(By.id("password")).sendKeys("crmsfa");	
+            
+            // Step 6) Find the login button and click
+            driver.findElement(By.className("decorativeSubmit")).click();
+            
+            // Step 7) Verify the title 
+            String title = driver.getTitle();
+            System.out.println(title);
+
+          }
+
+        }
+
+
+
+Tone: Playwright script should be well structured.
+Output: Executable format in playwright
+Persona: It should be executable by Automation tester. 
+
+Code Output:
+import { test, expect } from '@playwright/test';
+import path from 'path';
+
+// Configure test to run in Chrome and Firefox in headless mode
+test.describe.configure({ mode: 'parallel' });
+
+test.use({
+  headless: true,
+  screenshot: 'on',
+  trace: 'on',
+});
+
+const baseURL = 'http://leaftaps.com/opentaps/control/main';
+
+/**
+ * Utility function to save screenshots with step name
+ * @param page Playwright Page object
+ * @param stepName Name of the step for screenshot
+ */
+async function captureStepScreenshot(page, stepName: string) {
+  const screenshotPath = path.join(__dirname, `screenshots/${stepName}.png`);
+  await page.screenshot({ path: screenshotPath, fullPage: true });
+}
+
+test('Login to Leaftaps using Chrome and Firefox', async ({ page, browserName }) => {
+  // Step 1) Launch browser and navigate to URL
+  await page.goto(baseURL);
+  await page.waitForLoadState('domcontentloaded');
+  await captureStepScreenshot(page, `${browserName}-01-load-url`);
+
+  // Step 2) Type username
+  const usernameField = page.locator(`//input[@id='username']`);
+  await usernameField.waitFor({ state: 'visible' });
+  await usernameField.fill('DemoSalesManager');
+  await captureStepScreenshot(page, `${browserName}-02-username`);
+
+  // Step 3) Type password
+  const passwordField = page.locator(`//input[@id='password']`);
+  await passwordField.waitFor({ state: 'visible' });
+  await passwordField.fill('crmsfa');
+  await captureStepScreenshot(page, `${browserName}-03-password`);
+
+  // Step 4) Click login button
+  const loginButton = page.locator(`//input[@class='decorativeSubmit']`);
+  await loginButton.waitFor({ state: 'visible' });
+  await loginButton.click();
+  await page.waitForLoadState('networkidle');
+  await captureStepScreenshot(page, `${browserName}-04-login-click`);
+
+  // Step 5) Verify page title
+  const title = await page.title();
+  console.log(`✅ ${browserName} - Page Title: ${title}`);
+  expect(title).toContain('Leaftaps');
+  await captureStepScreenshot(page, `${browserName}-05-title-verified`);
+});
+
+---------------------------------------------------------------------------------------
+Running 1 test using 1 worker
+
+✅ chromium - Page Title: Leaftaps - TestLeaf Automation Platform
+✓ 1 example.spec.ts:25:5 › Login to Leaftaps using Chrome and Firefox (4.4s)
+
+1 passed (6.0s)
+---------------------------------------------------------------------------------------
+Homework 2:
+Homework Assignment 2:
+
+Integrate the prompt to your API (using postman) and confirm the response (json)
+
+Objective: You can integrate prompt + LLM API
+
+Request Body:
+{
+  "model": "deepseek-r1-distill-llama-70b",
+  "messages": [
+    {
+      "role": "user",
+      "content": "SHARE ONLY A CODE IN CONTENT AND AVOID THE OTHER TEXT, Context:\n\tYou are an AI assistant to convert the selenium java code to playwright Java typescript.\n\nInstruction:\n\t- Implementation guidelines:\n\t\t- Converting the selenium java code to executable playwright Java typescript.\n\t\t- Convert all locator to support playwright Java typescript specifically xpath.\n\t\t- [MANDATORY] Add all the required playwright waits to avoid time out issue.\n\t\t- [CRITICAL] Need screenshot for each executable steps.\n\t\t- [MANDATORY] Every method should have proper comments above method signature.\t\n\t\t- It should be executed in headless mode.\n\t\t\nExamples:\n         Selenium java code to be converted.\n\t\t Selenium Java Page Object Class:\n      ```java\n        package com.leaftaps.ui.pages;\n\n        import java.time.Duration;\n\n        import org.openqa.selenium.By;\n        import org.openqa.selenium.chrome.ChromeDriver;\n\n        import io.github.bonigarcia.wdm.WebDriverManager;\n\n        public class Login {\n          \n          public static void main(String[] args) {\n            /*\n            * Class Name: Login\n            */\n            \n            // Step 1) Launch the chrome browser (Class Name -> ChromeDriver)\n            ChromeDriver driver = new ChromeDriver();\n            \n            // Step 2) Load the URL (http://leaftaps.com/opentaps/control/main) -> get\n            driver.get(\"http://leaftaps.com/opentaps\");\n            \n            // Step 2b) Add common time to wait for all/any elements to load (Write once)\n            driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(15));\n            \n            // Step 3) Maximize the chrome browser\n            driver.manage().window().maximize();\n            \n            // Step 4) Find the username and type the value (DemoSalesManager)\n            driver.findElement(By.id(\"username1\")).sendKeys(\"DemoSalesManager\");\n            \n            // Step 5) Find the password and type the value (crmsfa)\n            driver.findElement(By.id(\"password\")).sendKeys(\"crmsfa\");\t\n            \n            // Step 6) Find the login button and click\n            driver.findElement(By.className(\"decorativeSubmit\")).click();\n            \n            // Step 7) Verify the title \n            String title = driver.getTitle();\n            System.out.println(title);\n\n          }\n\n        }\n  ``` "
+    }
+  ]
+}
+
+Response Body:
+{
+    "id": "chatcmpl-06db55af-76f2-4a6f-96f1-de98cb26da58",
+    "object": "chat.completion",
+    "created": 1757596689,
+    "model": "deepseek-r1-distill-llama-70b",
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "<think>\nOkay, I need to convert the given Selenium Java code into Playwright Java TypeScript. Let me start by understanding the original code.\n\nThe original code is a simple script that launches Chrome, navigates to a URL, logs in, and verifies the title. It uses Selenium's ChromeDriver and includes implicit waits.\n\nFirst, I'll outline the steps I need to take:\n\n1. **Set Up Playwright**: I know Playwright requires a test runner, so I'll include the necessary imports and setup. I'll use `playwright.java` and set the path to the Playwright CLI.\n\n2. **Convert Selenium Steps to Playwright**:\n   - Launching the browser: Instead of `ChromeDriver`, I'll use `Playwright`'s `chromium` browser in headless mode.\n   - Navigating to the URL: Use `page.navigate()` instead of `driver.get()`.\n   - Maximize the window: In Playwright, this can be done by setting the viewport size.\n   - Finding elements: Replace Selenium's `By.id()` with Playwright's `By` methods, which support XPath. I'll switch to XPath selectors for better reliability.\n   - Perform actions: Use `page.fill()` and `page.click()` for sending keys and clicking.\n   - Verify title: Use `page.title()` to get the page title.\n\n3. **Add Playwright Waits**: Playwright automatically waits for elements, but I'll explicitly add waits before each interaction to ensure elements are available. I'll use `page.waitForSelector()` with a timeout.\n\n4. **Take Screenshots**: After each major action, I'll capture a screenshot using `page.screenshot()`, saving them with descriptive names.\n\n5. **Add Comments and Structure**: Each method should have a comment explaining its purpose. I'll structure the code into methods like `launchBrowser()`, `login()`, and `verifyTitle()`.\n\n6. **Headless Mode**: Configure the browser to run in headless mode by setting `headless: true` in the browser context options.\n\nI also need to ensure that the code is properly formatted and that all necessary imports are included. I'll use TypeScript, so the syntax will be slightly different from Java, but the logic remains similar.\n\nLet me go through each step and translate it into Playwright code, making sure to include all the required elements like waits, screenshots, and comments. I'll test each part mentally to ensure it should work as expected without timeouts or errors.\n</think>\n\nHere is the Playwright Java TypeScript code implementing the requirements:\n\n```typescript\n// Import necessary modules\nconst playwright = require('playwright');\nconst path = require('path');\n\n// Set path to Playwright CLI\nconst playwrightCliPath = path.join(__dirname, '..', 'node_modules', 'playwright', '.bin', 'playwright.js');\n\n// Define the base class\nclass Login {\n  private browser;\n  private context;\n  private page;\n\n  /**\n   * Launch the browser in headless mode\n   */\n  async function launchBrowser() {\n    // Launch the browser\n    this.browser = await playwright.chromium.launch({\n      headless: true\n    });\n    // Create a new browser context\n    this.context = this.browser.newContext();\n    // Create a new page\n    this.page = this.context.newPage();\n  }\n\n  /**\n   * Navigate to the URL\n   */\n  async function navigateToURL() {\n    // Navigate to the specified URL\n    await this.page.navigate('http://leaftaps.com/opentaps');\n    // Take screenshot after navigation\n    await this.page.screenshot({ path: 'navigation.png' });\n  }\n\n  /**\n   * Maximize the browser window\n   */\n  async function maximizeWindow() {\n    // Set the viewport size to maximize the window\n    await this.page.setViewportSize({ width: 1920, height: 1080 });\n    // Take screenshot after maximizing\n    await this.page.screenshot({ path: 'maximized.png' });\n  }\n\n  /**\n   * Enter username\n   */\n  async function enterUsername() {\n    // Wait for username field to be available\n    await this.page.waitForSelector('xpath=//input[@id=\"username1\"]', { timeout: 15000 });\n    // Fill the username\n    await this.page.fill('xpath=//input[@id=\"username1\"]', 'DemoSalesManager');\n    // Take screenshot after entering username\n    await this.page.screenshot({ path: 'username.png' });\n  }\n\n  /**\n   * Enter password\n   */\n  async function enterPassword() {\n    // Wait for password field to be available\n    await this.page.waitForSelector('xpath=//input[@id=\"password\"]', { timeout: 15000 });\n    // Fill the password\n    await this.page.fill('xpath=//input[@id=\"password\"]', 'crmsfa');\n    // Take screenshot after entering password\n    await this.page.screenshot({ path: 'password.png' });\n  }\n\n  /**\n   * Click the login button\n   */\n  async function clickLogin() {\n    // Wait for login button to be available\n    await this.page.waitForSelector('xpath=//input[@class=\"decorativeSubmit\"]', { timeout: 15000 });\n    // Click the login button\n    await this.page.click('xpath=//input[@class=\"decorativeSubmit\"]');\n    // Take screenshot after clicking login\n    await this.page.screenshot({ path: 'login.png' });\n  }\n\n  /**\n   * Verify the title of the page\n   */\n  async function verifyTitle() {\n    // Get the page title\n    const title = await this.page.title();\n    console.log('Page Title:', title);\n    // Take final screenshot\n    await this.page.screenshot({ path: 'titleVerification.png' });\n  }\n\n  // Main execution\n  async function main() {\n    try {\n      await launchBrowser();\n      await navigateToURL();\n      await maximizeWindow();\n      await enterUsername();\n      await enterPassword();\n      await clickLogin();\n      await verifyTitle();\n    } finally {\n      // Close the browser\n      await this.browser.close();\n    }\n  }\n}\n\n// Run the main function\nmain();\n```"
+            },
+            "logprobs": null,
+            "finish_reason": "stop"
+        }
+    ],
+    "usage": {
+        "queue_time": 0.053023354,
+        "prompt_tokens": 484,
+        "prompt_time": 0.052546528,
+        "completion_tokens": 1277,
+        "completion_time": 4.056492957,
+        "total_tokens": 1761,
+        "total_time": 4.109039485
+    },
+    "usage_breakdown": null,
+    "system_fingerprint": "fp_1bbe7845ec",
+    "x_groq": {
+        "id": "req_01k4wet58ben0shn7n0fkdphsa"
+    },
+    "service_tier": "on_demand"
+}
+--------------------------------------------------------------------------------------
+Homework 3:
+
+Generate test data for credit card applications for different types of cards and conditions
+
+Notes:
+
+- Use ICE POT framework
+
+Context:
+	You are an AI assistant to generate test data for credit card applications for different types of cards and conditions.
+
+Instruction:
+	- Implementation guidelines:
+		- Include different types of cards (Visa, MasterCard, Amex, Discover, RuPay).
+		- [CRITICAL]Cover multiple applicant conditions:
+			- Good credit score
+			- Poor credit score
+			- No credit history
+			- High income
+			- Low income
+			- Self-employed
+			- Salaried individual
+		- [MANDATORY]Each test data entry should contain:
+			- Applicant Name
+			- Age
+			- Employment Type
+			- Annual Income
+			- Credit Score
+			- Requested Card Type
+			- Expected Application Status (Approved/Rejected/Pending)
+		- [REMEMBER]Provide at least 2 examples for each card type and condition combination.
+		- [MANDATORY]Output should be in structured JSON format for easy use in automation testing.
+		
+Example:
+	Sample test case format to generate the test case for credit card applications
+	
+┌──────────────┬───────────────────────────────────────┬──────────────────────────────┬──────────────────────────────────────┬──────────────────────────────────────────────┬──────────────────────────────┬──────────────────────────────┬──────────────────────────────────────┐
+│ Test Case ID │ Test Case Title                       │ Preconditions                │ Test Data                            │ Test Steps                                   │ Expected Result              │ Postconditions               │ Remarks / Notes                      │
+├──────────────┼───────────────────────────────────────┼──────────────────────────────┼──────────────────────────────────────┼──────────────────────────────────────────────┼──────────────────────────────┼──────────────────────────────┼──────────────────────────────────────┤
+│ CC_APP_001   │ Apply for Visa Card with Good Credit  │ Applicant age ≥ 18, valid ID │ Name, Age, Employment Type, Annual   │ 1. Launch portal                            │ Application Approved         │ Record saved in DB with      │ Validate credit limit assigned       │
+│              │ Score                                 │                              │ Income, Credit Score, Requested Card │ 2. Open credit card form                    │                              │ status “Approved”             │                                      │
+│              │                                       │                              │ Type                                 │ 3. Enter applicant details                  │                              │                              │                                      │
+│              │                                       │                              │                                      │ 4. Submit application                       │                              │                              │                                      │
+├──────────────┼───────────────────────────────────────┼──────────────────────────────┼──────────────────────────────────────┼────────────────────────
+		
+	
+Tone: Test case should be well structured.
+Output: Test cases should be excel format.
+Persona: It should be executable by Manual and Automation tester. 
+	
+{
+  "model": "deepseek-r1-distill-llama-70b",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Generate comprehensive test data for credit card applications. \n\nRequirements:\n- Include different types of cards (Visa, MasterCard, Amex, Discover, RuPay).\n- Cover multiple applicant conditions:\n  - Good credit score\n  - Poor credit score\n  - No credit history\n  - High income\n  - Low income\n  - Self-employed\n  - Salaried individual\n- Each test data entry should contain:\n  - Applicant Name\n  - Age\n  - Employment Type\n  - Annual Income\n  - Credit Score\n  - Requested Card Type\n  - Expected Application Status (Approved/Rejected/Pending)\n- Provide at least 2 examples for each card type and condition combination.\n- Output should be in structured JSON format for easy use in automation testing."
+    }
+  ]
+}
+
+Copilot Output:
+Proposed Excel Columns (Structure)
+
+Your test case Excel sheet should have these headers:
+
+Test Case ID
+
+Test Case Title
+
+Preconditions
+
+Test Data – Applicant Name
+
+Test Data – Age
+
+Test Data – Employment Type
+
+Test Data – Annual Income
+
+Test Data – Credit Score
+
+Test Data – Requested Card Type
+
+Steps to Execute
+
+Expected Result
+
+Postconditions
+
+Remarks / Notes
+
+Example Rows (Excel format)
+Test Case ID	Test Case Title	Preconditions	Applicant Name	Age	Employment Type	Annual Income	Credit Score	Requested Card Type	Steps to Execute	Expected Result	Postconditions	Remarks / Notes
+CC_APP_001	Apply for Visa Card with Good Credit Score	Applicant age ≥ 18, valid ID	John Doe	30	Salaried	80,000	780	Visa	1. Launch portal
+2. Open credit card form
+3. Enter applicant details
+4. Submit application	Application Approved	Record saved in DB with status “Approved”	Validate credit limit assigned
+CC_APP_002	Apply for Visa Card with Poor Credit Score	Applicant has low credit history	Alice Smith	40	Self-employed	45,000	520	Visa	Same steps as above	Application Rejected	Record saved in DB with status “Rejected”	Check rejection reason
+CC_APP_003	Apply for MasterCard with High Income	Applicant income > threshold	Raj Kumar	35	Salaried	150,000	770	MasterCard	Same steps as above	Application Approved	Record saved in DB with status “Approved”	Verify premium card eligibility
+CC_APP_004	Apply for MasterCard with No Credit History	First-time applicant	Sarah Lee	25	Salaried	60,000	N/A	MasterCard	Same steps as above	Application Pending	Record saved in DB	Ensure soft check for new customers
+
+⚡ With this structure:
+
+Manual testers can follow the steps and data directly.
+
+Automation testers can consume the test data columns in JSON/CSV and drive test scripts.
+
+👉 Do you want me to generate the full Excel file (with all card types × all conditions, ~70–80 rows) and give it to you as a .xlsx file so you can open directly in Excel?
+----------------------------------------------------------------------------------------------------------------------------------------------------
+Homework 4:
+
+Generate test data for credit card applications for different types of cards and conditions
+
+Notes:
+- Integrate with API to validate the response
+
+Request body:
+{
+  "model": "openai/gpt-oss-120b",
+  "messages": [
+    {
+      "role": "user",
+      "content": "**IMPORTANT**: You are not allowed to include any commentary, thoughts, explanations, or markdown in the response.\n\nYour task: Generate credit card test cases ONLY in this table format:\n\n│ Test Case ID │ Test Case Title │ Preconditions │ Test Data │ Test Steps │ Expected Result │\n\n**Only output the table content with 10 rows. DO NOT include any text before or after the table. DO NOT include <think> or any other tags.**\n\nGuidelines:\n- Include different card types (Visa, MasterCard, Amex, Discover, RuPay)\n- Cover various conditions (good/poor credit, no history, high/low income, self-employed, salaried)\n- Mix applicant conditions across the test cases\n- Each test case must have realistic, unique values"
+    }
+  ]
+}
+
+
+
+Response body:
+{
+    "id": "chatcmpl-3ae4630f-d396-47e7-a834-be92e9aec694",
+    "object": "chat.completion",
+    "created": 1757607658,
+    "model": "openai/gpt-oss-120b",
+    "choices": [
+        {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "│ Test Case ID │ Test Case Title                                   │ Preconditions                                 │ Test Data                                                                                                   │ Test Steps                                                                                                                                                                   │ Expected Result                                                                                 │\n│ TC001        │ Approve Visa card for salaried applicant           │ System up, credit check service available    │ Card Type: Visa; Credit Score: 750; Income: $85,000; Employment: Salaried; No existing cards; Residency: US                     │ 1. Log in to portal; 2. Enter applicant details; 3. Submit application; 4. Review decision                                                              │ Application approved; Card issued within 7 business days                                        │\n│ TC002        │ Decline MasterCard for poor credit                 │ System up, fraud detection enabled            │ Card Type: MasterCard; Credit Score: 580; Income: $45,000; Employment: Self‑employed; 2 recent delinquencies; Residency: US       │ 1. Input data; 2. Run credit check; 3. System evaluates risk; 4. Observe decision                                                               │ Application declined with message “Credit score below minimum threshold”                        │\n│ TC003        │ Approve Amex for high‑income self‑employed         │ Amex program active, income verification OK   │ Card Type: Amex; Credit Score: 720; Income: $210,000; Employment: Self‑employed (consultant); No prior Amex cards; Residency: US   │ 1. Enter applicant info; 2. Upload tax returns; 3. Submit; 4. Review approval                                                                      │ Approved; Premium rewards tier assigned                                                          │\n│ TC004        │ Decline Discover for no credit history             │ New applicant flow enabled                    │ Card Type: Discover; Credit Score: N/A; Income: $55,000; Employment: Salaried; No credit history; Residency: US                    │ 1. Fill application; 2. System attempts credit pull; 3. Detect no record; 4. Display outcome                                                   │ Declined with “Insufficient credit history” message                                             │\n│ TC005        │ Approve RuPay for salaried low‑income applicant     │ RuPay pilot program active                    │ Card Type: RuPay; Credit Score: 690; Income: $28,000; Employment: Salaried; Existing RuPay card: None; Residency: India           │ 1. Select RuPay; 2. Input details; 3. Run eligibility engine; 4. Confirm approval                                                               │ Approved with standard interest rate                                                             │\n│ TC006        │ Decline Visa for excessive existing debt           │ Debt verification service live               │ Card Type: Visa; Credit Score: 710; Income: $70,000; Employment: Salaried; Existing credit card debt: $55,000 (90% utilization); US │ 1. Submit application; 2. System checks debt‑to‑income ratio; 3. Flag high utilization; 4. Show decision                                           │ Declined with “Debt‑to‑income ratio exceeds limit” notification                                 │\n│ TC007        │ Approve MasterCard for young professional           │ Age verification passed                      │ Card Type: MasterCard; Credit Score: 680; Income: $48,000; Employment: Salaried; Age: 27; No prior cards; Residency: US           │ 1. Enter applicant data; 2. Perform credit check; 3. Evaluate age factor; 4. Approve if criteria met                                            │ Approved; Standard rewards tier assigned                                                       │\n│ TC008        │ Decline Amex for self‑employed with irregular income│ Income validation rules active                │ Card Type: Amex; Credit Score: 730; Income: $60,000 (fluctuating); Employment: Self‑employed (freelance); Residency: US           │ 1. Input variable income details; 2. System calculates average over 12 months; 3. Detect irregularity; 4. Issue decline                         │ Declined with “Income stability not sufficient” explanation                                     │\n│ TC009        │ Approve Discover for excellent credit, low income  │ Minimum score rule configured                 │ Card Type: Discover; Credit Score: 800; Income: $32,000; Employment: Salaried; No existing cards; Residency: US                    │ 1. Provide applicant info; 2. Run credit check; 3. System applies high‑score exception; 4. Approve                                             │ Approved with introductory 0% APR for 12 months                                                │\n│ TC010        │ Decline RuPay for non‑resident Indian applicant      │ Residency verification mandatory             │ Card Type: RuPay; Credit Score: 720; Income: $50,000; Employment: Salaried; Residency: Non‑resident Indian (NRIs)                   │ 1. Fill application; 2. System validates residency; 3. Identify non‑resident status; 4. Reject application                                   │ Declined with “Card not available for non‑resident applicants” message                          │",
+                "reasoning": "We need to output a table with columns: Test Case ID, Test Case Title, Preconditions, Test Data, Test Steps, Expected Result. 10 rows. No markdown, no extra commentary. Must be plain text table.\n\nWe need to format as a table with pipes and dashes presumably. Provide header row and separator row.\n\nNo markdown? The table format uses pipe characters, that's fine. But we must not include markdown code fences. Just plain text.\n\nMake sure 10 rows of test cases.\n\nInclude realistic values.\n\nLet's craft.\n\nWe'll create header line, separator line, then each row.\n\nMake sure each cell separated by \"│\" and spaces.\n\nWe'll need to align maybe but not necessary.\n\nWe'll ensure each row has unique values.\n\nLet's produce.\n\n"
+            },
+            "logprobs": null,
+            "finish_reason": "stop"
+        }
+    ],
+    "usage": {
+        "queue_time": 0.053170069,
+        "prompt_tokens": 228,
+        "prompt_time": 0.011167171,
+        "completion_tokens": 1198,
+        "completion_time": 2.472334179,
+        "total_tokens": 1426,
+        "total_time": 2.48350135
+    },
+    "usage_breakdown": null,
+    "system_fingerprint": "fp_213abb2467",
+    "x_groq": {
+        "id": "req_01k4ws8yeyecebckxz7ve1a38k"
+    },
+    "service_tier": "on_demand"
+}
