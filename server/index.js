@@ -804,6 +804,424 @@ app.post('/api/search', async (req, res) => {
   }
 });
 
+// ======================== BM25 Search Endpoint ========================
+app.post('/api/search/bm25', async (req, res) => {
+  try {
+    const { query, limit = 10, filters = {}, fields = ['title', 'description', 'steps', 'expectedResults', 'module'] } = req.body;
+    
+    if (!query) {
+      return res.status(400).json({ error: 'Query is required' });
+    }
+
+    console.log(`🔤 BM25 Search request: "${query}"`);
+    console.log(`   Limit: ${limit}`);
+    console.log(`   Filters:`, filters);
+
+    const mongoClient = new MongoClient(process.env.MONGODB_URI, {
+      ssl: true,
+      tlsAllowInvalidCertificates: true,
+      tlsAllowInvalidHostnames: true,
+      serverSelectionTimeoutMS: 30000,
+      connectTimeoutMS: 30000,
+      socketTimeoutMS: 30000,
+    });
+
+    await mongoClient.connect();
+
+    const validation = await validateDbCollectionIndex(
+      mongoClient, 
+      process.env.DB_NAME, 
+      process.env.COLLECTION_NAME, 
+      process.env.BM25_INDEX_NAME,
+      true
+    );
+    
+    if (!validation.ok) {
+      try { await mongoClient.close(); } catch (e) {}
+      return res.status(400).json({ error: validation.error });
+    }
+
+    const db = mongoClient.db(process.env.DB_NAME);
+    const collection = db.collection(process.env.COLLECTION_NAME);
+
+    // Build BM25 search pipeline
+    const pipeline = [
+      {
+        $search: {
+          index: process.env.BM25_INDEX_NAME,
+          text: {
+            query: query,
+            path: fields,
+            fuzzy: {
+              maxEdits: 1,
+              prefixLength: 2
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          score: { $meta: "searchScore" }
+        }
+      }
+    ];
+
+    // Apply filters if provided
+    if (Object.keys(filters).length > 0) {
+      const matchConditions = {};
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value && value !== '') {
+          matchConditions[key] = value;
+        }
+      });
+
+      if (Object.keys(matchConditions).length > 0) {
+        pipeline.push({ $match: matchConditions });
+      }
+    }
+
+    // Add projection and limit
+    pipeline.push(
+      {
+        $project: {
+          id: 1,
+          module: 1,
+          title: 1,
+          description: 1,
+          steps: 1,
+          expectedResults: 1,
+          priority: 1,
+          risk: 1,
+          automationManual: 1,
+          sourceFile: 1,
+          createdAt: 1,
+          score: 1
+        }
+      },
+      { $limit: parseInt(limit) }
+    );
+
+    console.log('🔍 BM25 Pipeline:', JSON.stringify(pipeline, null, 2));
+
+    const startTime = Date.now();
+    const results = await collection.aggregate(pipeline).toArray();
+    const searchTime = Date.now() - startTime;
+
+    await mongoClient.close();
+
+    console.log(`✅ BM25 Search complete: ${results.length} results in ${searchTime}ms`);
+
+    res.json({
+      success: true,
+      searchType: 'bm25',
+      query,
+      filters,
+      results,
+      count: results.length,
+      searchTime,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ BM25 Search error:', error);
+    res.status(500).json({ 
+      error: 'BM25 search failed', 
+      details: error.message 
+    });
+  }
+});
+
+// ======================== Hybrid Search Endpoint (BM25 + Vector) ========================
+app.post('/api/search/hybrid', async (req, res) => {
+  try {
+    const { 
+      query, 
+      limit = 10, 
+      filters = {},
+      bm25Weight = 0.5,
+      vectorWeight = 0.5,
+      bm25Fields = ['title', 'description', 'steps', 'expectedResults', 'module']
+    } = req.body;
+    
+    if (!query) {
+      return res.status(400).json({ error: 'Query is required' });
+    }
+
+    console.log(`🔀 Hybrid Search request: "${query}"`);
+    console.log(`   BM25 Weight: ${bm25Weight}, Vector Weight: ${vectorWeight}`);
+
+    const mongoClient = new MongoClient(process.env.MONGODB_URI, {
+      ssl: true,
+      tlsAllowInvalidCertificates: true,
+      tlsAllowInvalidHostnames: true,
+      serverSelectionTimeoutMS: 30000,
+      connectTimeoutMS: 30000,
+      socketTimeoutMS: 30000,
+    });
+
+    await mongoClient.connect();
+
+    // Validate both indexes exist
+    const bm25Validation = await validateDbCollectionIndex(
+      mongoClient, 
+      process.env.DB_NAME, 
+      process.env.COLLECTION_NAME, 
+      process.env.BM25_INDEX_NAME,
+      true
+    );
+    
+    const vectorValidation = await validateDbCollectionIndex(
+      mongoClient, 
+      process.env.DB_NAME, 
+      process.env.COLLECTION_NAME, 
+      process.env.VECTOR_INDEX_NAME,
+      true
+    );
+
+    if (!bm25Validation.ok) {
+      await mongoClient.close();
+      return res.status(400).json({ error: `BM25 Index: ${bm25Validation.error}` });
+    }
+
+    if (!vectorValidation.ok) {
+      await mongoClient.close();
+      return res.status(400).json({ error: `Vector Index: ${vectorValidation.error}` });
+    }
+
+    const db = mongoClient.db(process.env.DB_NAME);
+    const collection = db.collection(process.env.COLLECTION_NAME);
+
+    const searchLimit = parseInt(limit) * 3; // Get more for better combination
+
+    // 1. BM25 Search
+    console.log('🔤 Running BM25 search...');
+    const bm25StartTime = Date.now();
+    
+    const bm25Pipeline = [
+      {
+        $search: {
+          index: process.env.BM25_INDEX_NAME,
+          text: {
+            query: query,
+            path: bm25Fields,
+            fuzzy: {
+              maxEdits: 1,
+              prefixLength: 2
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          bm25Score: { $meta: "searchScore" }
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          id: 1,
+          module: 1,
+          title: 1,
+          description: 1,
+          steps: 1,
+          expectedResults: 1,
+          priority: 1,
+          risk: 1,
+          automationManual: 1,
+          sourceFile: 1,
+          createdAt: 1,
+          bm25Score: 1
+        }
+      },
+      { $limit: searchLimit }
+    ];
+
+    const bm25Results = await collection.aggregate(bm25Pipeline).toArray();
+    const bm25Time = Date.now() - bm25StartTime;
+
+    // 2. Vector Search
+    console.log('🧠 Running vector search...');
+    const vectorStartTime = Date.now();
+
+    const TESTLEAF_API_BASE = process.env.TESTLEAF_API_BASE || 'https://api.testleaf.com/ai';
+    const USER_EMAIL = process.env.USER_EMAIL;
+    const AUTH_TOKEN = process.env.AUTH_TOKEN;
+
+    const embeddingResponse = await axios.post(
+      `${TESTLEAF_API_BASE}/embedding/text/${USER_EMAIL}`,
+      {
+        input: query,
+        model: "text-embedding-3-small"
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(AUTH_TOKEN && { 'Authorization': `Bearer ${AUTH_TOKEN}` })
+        }
+      }
+    );
+
+    if (embeddingResponse.data.status !== 200) {
+      throw new Error(`Testleaf API error: ${embeddingResponse.data.message}`);
+    }
+
+    const queryVector = embeddingResponse.data.data[0].embedding;
+
+    const vectorPipeline = [
+      {
+        $vectorSearch: {
+          queryVector,
+          path: "embedding",
+          numCandidates: 100,
+          limit: searchLimit,
+          index: process.env.VECTOR_INDEX_NAME
+        }
+      },
+      {
+        $addFields: {
+          vectorScore: { $meta: "vectorSearchScore" }
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          id: 1,
+          module: 1,
+          title: 1,
+          description: 1,
+          steps: 1,
+          expectedResults: 1,
+          priority: 1,
+          risk: 1,
+          automationManual: 1,
+          sourceFile: 1,
+          createdAt: 1,
+          vectorScore: 1
+        }
+      }
+    ];
+
+    const vectorResults = await collection.aggregate(vectorPipeline).toArray();
+    const vectorTime = Date.now() - vectorStartTime;
+
+    // 3. Normalize and combine scores
+    console.log('🔀 Combining results...');
+    
+    // Normalize BM25 scores
+    const bm25Scores = bm25Results.map(r => r.bm25Score);
+    const bm25Max = Math.max(...bm25Scores, 1);
+    const bm25Min = Math.min(...bm25Scores, 0);
+    const bm25Range = bm25Max - bm25Min || 1;
+
+    // Normalize Vector scores
+    const vectorScores = vectorResults.map(r => r.vectorScore);
+    const vectorMax = Math.max(...vectorScores, 1);
+    const vectorMin = Math.min(...vectorScores, 0);
+    const vectorRange = vectorMax - vectorMin || 1;
+
+    // Create result map
+    const resultMap = new Map();
+
+    // Add BM25 results with normalized scores
+    bm25Results.forEach(result => {
+      const key = result._id.toString();
+      const normalizedScore = (result.bm25Score - bm25Min) / bm25Range;
+      resultMap.set(key, {
+        ...result,
+        bm25ScoreNormalized: normalizedScore,
+        vectorScore: 0,
+        vectorScoreNormalized: 0,
+        hybridScore: normalizedScore * bm25Weight,
+        foundIn: 'bm25'
+      });
+    });
+
+    // Add/merge vector results with normalized scores
+    vectorResults.forEach(result => {
+      const key = result._id.toString();
+      const normalizedScore = (result.vectorScore - vectorMin) / vectorRange;
+      
+      if (resultMap.has(key)) {
+        // Merge - found in both
+        const existing = resultMap.get(key);
+        existing.vectorScore = result.vectorScore;
+        existing.vectorScoreNormalized = normalizedScore;
+        existing.hybridScore += normalizedScore * vectorWeight;
+        existing.foundIn = 'both';
+      } else {
+        // New result - only in vector
+        resultMap.set(key, {
+          ...result,
+          bm25Score: 0,
+          bm25ScoreNormalized: 0,
+          vectorScoreNormalized: normalizedScore,
+          hybridScore: normalizedScore * vectorWeight,
+          foundIn: 'vector'
+        });
+      }
+    });
+
+    // Convert to array and sort by hybrid score
+    let combinedResults = Array.from(resultMap.values());
+    combinedResults.sort((a, b) => b.hybridScore - a.hybridScore);
+
+    // Apply filters if provided
+    if (Object.keys(filters).length > 0) {
+      combinedResults = combinedResults.filter(result => {
+        return Object.entries(filters).every(([key, value]) => {
+          if (!value || value === '') return true;
+          return result[key] === value;
+        });
+      });
+    }
+
+    // Limit results
+    const finalResults = combinedResults.slice(0, parseInt(limit));
+
+    await mongoClient.close();
+
+    const totalTime = Date.now() - bm25StartTime;
+    console.log(`✅ Hybrid Search complete: ${finalResults.length} results in ${totalTime}ms`);
+
+    // Calculate statistics
+    const bothCount = finalResults.filter(r => r.foundIn === 'both').length;
+    const bm25OnlyCount = finalResults.filter(r => r.foundIn === 'bm25').length;
+    const vectorOnlyCount = finalResults.filter(r => r.foundIn === 'vector').length;
+
+    res.json({
+      success: true,
+      searchType: 'hybrid',
+      query,
+      filters,
+      weights: { bm25: bm25Weight, vector: vectorWeight },
+      results: finalResults,
+      count: finalResults.length,
+      stats: {
+        foundInBoth: bothCount,
+        foundInBm25Only: bm25OnlyCount,
+        foundInVectorOnly: vectorOnlyCount,
+        bm25ResultCount: bm25Results.length,
+        vectorResultCount: vectorResults.length
+      },
+      timing: {
+        bm25Time,
+        vectorTime,
+        totalTime
+      },
+      cost: embeddingResponse.data.cost || 0,
+      tokens: embeddingResponse.data.usage?.total_tokens || 0,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Hybrid Search error:', error);
+    res.status(500).json({ 
+      error: 'Hybrid search failed', 
+      details: error.message 
+    });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);

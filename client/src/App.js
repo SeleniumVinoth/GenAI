@@ -36,7 +36,9 @@ import {
   ChevronLeft as ChevronLeftIcon,
   Brightness4 as DarkModeIcon,
   Brightness7 as LightModeIcon,
-  NavigateNext as NavigateNextIcon
+  NavigateNext as NavigateNextIcon,
+  TextFields as KeywordIcon,
+  AutoFixHigh as HybridIcon
 } from '@mui/icons-material';
 import { SnackbarProvider } from 'notistack';
 
@@ -45,6 +47,8 @@ import ConvertToJson from './components/ConvertToJson';
 import EmbeddingsStore from './components/EmbeddingsStore';
 import Settings from './components/Settings';
 import QuerySearch from './components/QuerySearch';
+import BM25Search from './components/BM25Search';
+import HybridSearch from './components/HybridSearch';
 
 // Enterprise color palette
 const createEnterpriseTheme = (mode) => createTheme({
@@ -162,10 +166,24 @@ const menuItems = [
   },
   { 
     id: 'query', 
-    label: 'Query Search', 
+    label: 'Vector Search', 
     icon: <SearchIcon />, 
     component: QuerySearch,
-    description: 'Search test cases'
+    description: 'Semantic vector search'
+  },
+  { 
+    id: 'bm25', 
+    label: 'BM25 Search', 
+    icon: <KeywordIcon />, 
+    component: BM25Search,
+    description: 'Keyword-based search'
+  },
+  { 
+    id: 'hybrid', 
+    label: 'Hybrid Search', 
+    icon: <HybridIcon />, 
+    component: HybridSearch,
+    description: 'Combined BM25 + Vector'
   },
 ];
 
