@@ -205,6 +205,13 @@ const menuItems = [
     component: RerankingSearch,
     description: 'BM25+Vector fusion reranking'
   },
+  { 
+    id: 'summarize', 
+    label: 'Summarize & Dedup', 
+    icon: <SummarizeIcon />, 
+    component: SummarizationDedup,
+    description: 'AI summarization & deduplication'
+  },
 ];
 
 function App() {
