@@ -801,20 +801,79 @@ app.post('/api/search/summarize', async (req, res) => {
       });
     }
 
-    // Prepare the content for summarization
-    const resultsText = results.map((r, idx) => 
-      `${idx + 1}. ${r.id || 'N/A'}: ${r.title || 'No title'}\n   ${r.description || 'No description'}`
-    ).join('\n\n');
+    // Prepare comprehensive content for summarization
+    // Handle both field name formats and include ALL available information
+    const resultsText = results.map((r, idx) => {
+      const id = r.testCaseId || r.id || 'N/A';
+      const title = r.testCaseTitle || r.title || 'No title';
+      const description = r.testCaseDescription || r.description || 'No description';
+      const steps = r.testSteps || r.steps || [];
+      const expectedResults = r.expectedResults || r.expectedResults || 'Not specified';
+      const module = r.module || 'Unknown';
+      const priority = r.priority || 'Not specified';
+      const automationManual = r.automationManual || r.automationStatus || 'Not specified';
+      const risk = r.risk || 'Not specified';
+      const type = r.type || 'Functional';
+      
+      let testCaseDetail = `${idx + 1}. TEST CASE: ${id}`;
+      testCaseDetail += `\n   MODULE: ${module}`;
+      testCaseDetail += `\n   PRIORITY: ${priority} | RISK: ${risk} | TYPE: ${type} | AUTOMATION: ${automationManual}`;
+      testCaseDetail += `\n   TITLE: ${title}`;
+      testCaseDetail += `\n   DESCRIPTION: ${description}`;
+      
+      if (steps) {
+        testCaseDetail += `\n   TEST STEPS:`;
+        if (Array.isArray(steps) && steps.length > 0) {
+          steps.forEach((step, stepIdx) => {
+            testCaseDetail += `\n     ${stepIdx + 1}. ${step}`;
+          });
+        } else if (typeof steps === 'string' && steps.trim()) {
+          // Handle case where steps is a string (split by common delimiters)
+          const stepArray = steps.split(/\r?\n|\r/).filter(step => step.trim());
+          stepArray.forEach((step, stepIdx) => {
+            testCaseDetail += `\n     ${stepIdx + 1}. ${step.trim()}`;
+          });
+        } else {
+          testCaseDetail += `\n     ${steps}`;
+        }
+      }
+      
+      testCaseDetail += `\n   EXPECTED RESULTS: ${expectedResults}`;
+      testCaseDetail += `\n   ----------------------------------------`;
+      
+      return testCaseDetail;
+    }).join('\n\n');
 
     const systemPrompt = summaryType === 'detailed'
-      ? 'You are a QA expert. Provide a detailed summary of the test cases, grouping them by functionality and highlighting key testing scenarios.'
-      : 'You are a QA expert. Provide a concise summary of the test cases in 2-3 sentences, highlighting the main functionality being tested.';
+      ? `You are a senior QA expert specializing in healthcare systems with 10+ years of experience. 
 
-    const userPrompt = `Summarize the following test cases:\n\n${resultsText}`;
+Your task is to provide a COMPREHENSIVE analysis of the test cases including:
 
-    // Call TestLeaf Chat Completion API
-    const apiKey = process.env.TESTLEAF_API_KEY || process.env.OPENAI_API_KEY;
-    const apiUrl = 'https://api.testleaf.com/v1/chat/completions';
+1. **FUNCTIONAL COVERAGE ANALYSIS**: Group test cases by modules/functionality
+2. **PRIORITY & RISK ASSESSMENT**: Analyze priority distribution and risk coverage
+3. **TEST SCENARIO DEPTH**: Evaluate completeness of test steps and expected results
+4. **EDGE CASES & NEGATIVE SCENARIOS**: Identify what edge cases are covered
+5. **AUTOMATION READINESS**: Assess automation vs manual distribution
+6. **CRITICAL GAPS**: Identify missing test scenarios that should exist
+7. **HEALTHCARE COMPLIANCE**: Note any regulatory/compliance testing gaps
+8. **INTEGRATION POINTS**: Identify inter-module dependencies that need testing
+
+Provide detailed insights with specific examples from the test cases. Be thorough and technical.`
+      : 'You are a QA expert specializing in healthcare systems. Provide a concise summary of the test cases in 2-3 sentences, highlighting the main functionality being tested and key scenarios covered.';
+
+    const userPrompt = summaryType === 'detailed' 
+      ? `Analyze the following healthcare test cases in detail. Provide comprehensive coverage analysis:\n\n${resultsText}`
+      : `Summarize the following test cases:\n\n${resultsText}`;
+
+    // Use OpenAI API directly for chat completion (TestLeaf doesn't support this endpoint)
+    const apiKey = process.env.OPENAI_API_KEY;
+    
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY is required for summarization feature');
+    }
+    
+    // Use OpenAI's official endpoint
+    const apiUrl = 'https://api.openai.com/v1/chat/completions';
 
     const response = await axios.post(apiUrl, {
       model: 'gpt-4o-mini',
@@ -826,11 +885,20 @@ app.post('/api/search/summarize', async (req, res) => {
       max_tokens: summaryType === 'detailed' ? 1000 : 300
     }, {
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
       }
     });
 
+    // Log the response for debugging
+    console.log('OpenAI API Response:', JSON.stringify(response.data, null, 2));
+
+    // Check if response has expected structure
+    if (!response.data || !response.data.choices || !response.data.choices[0]) {
+      throw new Error(`Unexpected API response structure: ${JSON.stringify(response.data)}`);
+    }
+
+    // OpenAI API response structure (direct, not wrapped like TestLeaf)
     const summary = response.data.choices[0].message.content;
     const usage = response.data.usage;
 
@@ -856,10 +924,89 @@ app.post('/api/search/summarize', async (req, res) => {
     });
   } catch (error) {
     console.error('Summarization error:', error);
+    console.error('Error response:', error.response?.data);
+    console.error('Error status:', error.response?.status);
+    
     res.status(500).json({ 
       error: 'Failed to summarize results', 
       details: error.message,
+      apiError: error.response?.data,
       hint: 'Make sure TESTLEAF_API_KEY or OPENAI_API_KEY is set in .env file'
+    });
+  }
+});
+
+// ======================== Test Prompt Endpoint ========================
+app.post('/api/test-prompt', async (req, res) => {
+  try {
+    const { prompt, temperature = 0.7, maxTokens = 1000 } = req.body;
+    
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    
+    if (!apiKey) {
+      throw new Error('OPENAI_API_KEY is required for prompt testing');
+    }
+    
+    const apiUrl = 'https://api.openai.com/v1/chat/completions';
+
+    const response = await axios.post(apiUrl, {
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'user', content: prompt }
+      ],
+      temperature: temperature,
+      max_tokens: maxTokens,
+      response_format: { type: "json_object" }
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      }
+    });
+
+    if (!response.data || !response.data.choices || !response.data.choices[0]) {
+      throw new Error(`Unexpected API response structure`);
+    }
+
+    const aiResponse = response.data.choices[0].message.content;
+    const usage = response.data.usage;
+
+    // Calculate cost
+    const inputCost = (usage.prompt_tokens / 1000000) * 0.150;
+    const outputCost = (usage.completion_tokens / 1000000) * 0.600;
+    const totalCost = inputCost + outputCost;
+
+    // Try to parse as JSON
+    let parsedResponse;
+    try {
+      parsedResponse = JSON.parse(aiResponse);
+    } catch (e) {
+      parsedResponse = { raw: aiResponse };
+    }
+
+    res.json({
+      response: parsedResponse,
+      tokens: {
+        prompt: usage.prompt_tokens,
+        completion: usage.completion_tokens,
+        total: usage.total_tokens
+      },
+      cost: {
+        input: inputCost.toFixed(6),
+        output: outputCost.toFixed(6),
+        total: totalCost.toFixed(6)
+      },
+      model: 'gpt-4o-mini'
+    });
+  } catch (error) {
+    console.error('Prompt test error:', error);
+    res.status(500).json({ 
+      error: 'Failed to test prompt', 
+      details: error.message
     });
   }
 });
@@ -929,13 +1076,18 @@ app.post('/api/search', async (req, res) => {
 
     const queryVector = embeddingResponse.data.data[0].embedding;
 
+    // Calculate candidates and internal limit for vector search
+    const requestedLimit = parseInt(limit);
+    const numCandidates = Math.max(100, requestedLimit * 10); // At least 100 candidates
+    const vectorSearchLimit = Math.min(numCandidates, requestedLimit * 10); // Limit must be <= numCandidates
+
     // Build vector search WITHOUT pre-filtering (to avoid index requirement)
     const vectorSearchStage = {
       $vectorSearch: {
         queryVector,
         path: "embedding",
-        numCandidates: 100,
-        limit: parseInt(limit) * 10, // Get more candidates for post-filtering
+        numCandidates: numCandidates,
+        limit: vectorSearchLimit, // Get more candidates for post-filtering
         index: process.env.VECTOR_INDEX_NAME
       }
     };
@@ -966,7 +1118,7 @@ app.post('/api/search', async (req, res) => {
 
     // Add limit after filtering
     pipeline.push({
-      $limit: parseInt(limit)
+      $limit: requestedLimit
     });
 
     // Project fields
@@ -997,19 +1149,26 @@ app.post('/api/search', async (req, res) => {
     console.log('🔍 Filters:', JSON.stringify(filters));
     console.log('🔍 Pipeline:', JSON.stringify(pipeline, null, 2));
 
-  const results = await collection.aggregate(pipeline).toArray();
-  await mongoClient.close();
+    const results = await collection.aggregate(pipeline).toArray();
+    console.log('✅ Found results:', results.length);
+    
+    await mongoClient.close();
 
-    res.json({
+    const responseData = {
       success: true,
       query,
       filters,
       results,
       cost: embeddingResponse.data.cost || 0,
       tokens: embeddingResponse.data.usage?.total_tokens || 0
-    });
+    };
+    
+    console.log('📤 Sending response with', results.length, 'results');
+    res.json(responseData);
 
   } catch (error) {
+    console.error('❌ Search failed:', error.message);
+    console.error('Error details:', error);
     res.status(500).json({ error: 'Search failed', details: error.message });
   }
 });

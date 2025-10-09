@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "../../.."
+		},
+		{
+			"path": "../../../../testleaf-api"
+		}
+	],
+	"settings": {}
+}

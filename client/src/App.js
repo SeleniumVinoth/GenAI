@@ -41,7 +41,8 @@ import {
   AutoFixHigh as HybridIcon,
   CompareArrows as RerankIcon,
   Psychology as PreprocessIcon,
-  Summarize as SummarizeIcon
+  Summarize as SummarizeIcon,
+  Schema as SchemaIcon
 } from '@mui/icons-material';
 import { SnackbarProvider } from 'notistack';
 
@@ -55,6 +56,7 @@ import HybridSearch from './components/HybridSearch';
 import RerankingSearch from './components/RerankingSearch';
 import QueryPreprocessing from './components/QueryPreprocessing';
 import SummarizationDedup from './components/SummarizationDedup';
+import PromptSchemaManager from './components/PromptSchemaManager';
 
 // Enterprise color palette
 const createEnterpriseTheme = (mode) => createTheme({
@@ -211,6 +213,13 @@ const menuItems = [
     icon: <SummarizeIcon />, 
     component: SummarizationDedup,
     description: 'AI summarization & deduplication'
+  },
+  { 
+    id: 'prompt-schema', 
+    label: 'Prompt & Schema', 
+    icon: <SchemaIcon />, 
+    component: PromptSchemaManager,
+    description: 'Configure prompt templates & JSON schemas'
   },
 ];
 

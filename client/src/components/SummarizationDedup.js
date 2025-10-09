@@ -209,6 +209,18 @@ function SummarizationDedup() {
     return 'error';
   };
 
+  // Get score value based on search type
+  const getScore = (result) => {
+    // Try different score fields based on search type
+    if (result.hybridScore !== undefined) return result.hybridScore;
+    if (result.score !== undefined) return result.score;
+    if (result.vectorScore !== undefined) return result.vectorScore;
+    if (result.bm25Score !== undefined) return result.bm25Score;
+    if (result.vectorScoreNormalized !== undefined) return result.vectorScoreNormalized;
+    if (result.bm25ScoreNormalized !== undefined) return result.bm25ScoreNormalized;
+    return null;
+  };
+
   // Example queries
   const exampleQueries = [
     "patient login authentication",
@@ -242,6 +254,12 @@ function SummarizationDedup() {
               onChange={(e) => setQuery(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
               variant="outlined"
+              sx={{ 
+                '& .MuiOutlinedInput-root': { 
+                  minWidth: '800px',
+                  width: '100%'
+                } 
+              }}
             />
           </Grid>
           <Grid item xs={12} md={4}>
@@ -440,9 +458,9 @@ function SummarizationDedup() {
                                 {result.id}
                               </Typography>
                               <Chip 
-                                label={`Score: ${result.score?.toFixed(4) || 'N/A'}`} 
+                                label={`Score: ${getScore(result)?.toFixed(4) || 'N/A'}`} 
                                 size="small"
-                                color={getScoreColor(result.score || 0)}
+                                color={getScoreColor(getScore(result) || 0)}
                               />
                             </Box>
                             <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
@@ -549,9 +567,9 @@ function SummarizationDedup() {
                                   </Typography>
                                   <Chip label="✓ Unique" size="small" color="success" />
                                   <Chip 
-                                    label={`Score: ${result.score?.toFixed(4) || 'N/A'}`} 
+                                    label={`Score: ${getScore(result)?.toFixed(4) || 'N/A'}`} 
                                     size="small"
-                                    color={getScoreColor(result.score || 0)}
+                                    color={getScoreColor(getScore(result) || 0)}
                                   />
                                 </Box>
                                 <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
