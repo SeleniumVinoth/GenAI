@@ -26,39 +26,42 @@ const TESTLEAF_API_BASE = process.env.TESTLEAF_API_BASE || 'https://api.testleaf
 const USER_EMAIL = process.env.USER_EMAIL;
 const AUTH_TOKEN = process.env.AUTH_TOKEN;
 
-// BATCH PROCESSING CONFIGURATION - Optimized for 6000+ testcases
-const BATCH_SIZE = 50; // Process 50 testcases at once (larger batches for many records)
-const CONCURRENT_LIMIT = 10; // Max 10 concurrent API calls (optimized for speed)
-const DELAY_BETWEEN_BATCHES = 500; // 500ms delay between batches
-const MONGODB_BATCH_SIZE = 100; // Insert 100 documents at once
+// BATCH PROCESSING CONFIGURATION - Optimized for Testleaf Batch API
+const BATCH_SIZE = 100; // Send 100 testcases per batch API call (Testleaf can handle larger batches)
+const CONCURRENT_LIMIT = 5; // Max 5 concurrent batch API calls (fewer but larger requests)
+const DELAY_BETWEEN_BATCHES = 1000; // 1000ms delay between batches (batch calls take longer)
+const MONGODB_BATCH_SIZE = 200; // Insert 200 documents at once
 
 // Create limiters for different operations
 const embeddingLimit = pLimit(CONCURRENT_LIMIT);
 const dbLimit = pLimit(3); // Limit DB operations
 
 /**
- * Generate embedding for a single testcase with retry logic
+ * Generate embeddings for a batch of testcases using Testleaf Batch API
  */
-async function generateTestcaseEmbedding(testcase, index, total, maxRetries = 3) {
+async function generateBatchEmbeddings(testcaseBatch, batchNumber, totalBatches, maxRetries = 3) {
   return embeddingLimit(async () => {
-    const testcaseId = testcase.id || `TC-${index + 1}`;
     let lastError;
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const inputText = `
+        // Prepare input texts for batch processing
+        const inputs = testcaseBatch.map(testcase => `
           ID: ${testcase.id}
           Module: ${testcase.module}
           Title: ${testcase.title}
           Description: ${testcase.description}
           Steps: ${testcase.steps}
           Expected Result: ${testcase.expectedResults}
-        `;
+        `.trim());
         
+        console.log(`🚀 [Batch ${batchNumber}/${totalBatches}] Processing ${testcaseBatch.length} testcases...`);
+        
+        // Use Testleaf Batch API endpoint
         const embeddingResponse = await axios.post(
-          `${TESTLEAF_API_BASE}/embedding/text/${USER_EMAIL}`,
+          `${TESTLEAF_API_BASE}/embedding/batch/${USER_EMAIL}`,
           {
-            input: inputText,
+            inputs: inputs,
             model: "text-embedding-3-small"
           },
           {
@@ -66,52 +69,69 @@ async function generateTestcaseEmbedding(testcase, index, total, maxRetries = 3)
               'Content-Type': 'application/json',
               ...(AUTH_TOKEN && { 'Authorization': `Bearer ${AUTH_TOKEN}` })
             },
-            timeout: 30000
+            timeout: 60000 // Longer timeout for batch requests
           }
         );
 
         if (embeddingResponse.data.status !== 200) {
-          throw new Error(`API error: ${embeddingResponse.data.message}`);
+          throw new Error(`Batch API error: ${embeddingResponse.data.message}`);
         }
 
-        const vector = embeddingResponse.data.data[0].embedding;
-        const cost = embeddingResponse.data.cost || 0;
-        const tokens = embeddingResponse.data.usage?.total_tokens || 0;
+        const embeddings = embeddingResponse.data.data;
+        const totalCost = embeddingResponse.data.cost || 0;
+        const totalTokens = embeddingResponse.data.usage?.total_tokens || 0;
+        const model = embeddingResponse.data.model;
         
-        // Success - log every 100th item to avoid spam
-        if (index % 100 === 0 || index === total - 1) {
-          console.log(`✅ [${index + 1}/${total}] ${testcaseId} | Cost: $${cost.toFixed(6)} | Tokens: ${tokens}`);
-        }
-
-        return {
+        // Map embeddings back to testcases
+        const results = testcaseBatch.map((testcase, index) => ({
           testcase,
-          embedding: vector,
-          cost,
-          tokens,
+          embedding: embeddings[index].embedding,
+          cost: totalCost / testcaseBatch.length, // Distribute cost evenly
+          tokens: Math.round(totalTokens / testcaseBatch.length), // Distribute tokens evenly
           metadata: {
-            model: embeddingResponse.data.model,
-            cost: cost,
-            tokens: tokens,
-            apiSource: 'testleaf',
+            model: model,
+            cost: totalCost / testcaseBatch.length,
+            tokens: Math.round(totalTokens / testcaseBatch.length),
+            apiSource: 'testleaf-batch',
+            batchNumber: batchNumber,
             createdAt: new Date()
           }
+        }));
+        
+        console.log(`✅ [Batch ${batchNumber}/${totalBatches}] Success! Cost: $${totalCost.toFixed(6)} | Tokens: ${totalTokens}`);
+        
+        return {
+          success: true,
+          results: results,
+          totalCost: totalCost,
+          totalTokens: totalTokens,
+          batchSize: testcaseBatch.length
         };
 
       } catch (error) {
         lastError = error;
         if (attempt < maxRetries) {
-          console.log(`⚠️ [${index + 1}/${total}] Retry ${attempt}/${maxRetries} for ${testcaseId}: ${error.message}`);
-          await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Exponential backoff
+          const waitTime = Math.min(1000 * Math.pow(2, attempt), 10000);
+          console.log(`⚠️ [Batch ${batchNumber}/${totalBatches}] Retry ${attempt}/${maxRetries}: ${error.message}`);
+          console.log(`   Waiting ${waitTime}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
         }
       }
     }
 
-    console.error(`❌ [${index + 1}/${total}] Final failure for ${testcaseId}: ${lastError.message}`);
+    console.error(`❌ [Batch ${batchNumber}/${totalBatches}] Final failure: ${lastError.message}`);
     return {
-      testcase,
+      success: false,
       error: lastError.message,
-      cost: 0,
-      tokens: 0
+      results: testcaseBatch.map(testcase => ({
+        testcase,
+        error: lastError.message,
+        cost: 0,
+        tokens: 0
+      })),
+      totalCost: 0,
+      totalTokens: 0,
+      batchSize: testcaseBatch.length
     };
   });
 }
@@ -203,85 +223,97 @@ async function main() {
     const testcases = JSON.parse(fs.readFileSync("src/data/testcases.json", "utf-8"));
     const progress = new ProgressTracker(testcases.length);
 
-    console.log(`🚀 BATCH PROCESSING: ${testcases.length} test cases`);
-    console.log(`⚙️  Configuration for Large Dataset:`);
-    console.log(`   📦 Batch Size: ${BATCH_SIZE}`);
-    console.log(`   🔄 Concurrent API Calls: ${CONCURRENT_LIMIT}`);
+    console.log(`🚀 TESTLEAF BATCH API PROCESSING: ${testcases.length} test cases`);
+    console.log(`⚡ Using Testleaf Batch Embedding API for Maximum Efficiency!`);
+    console.log(`⚙️  Configuration for Batch API:`);
+    console.log(`   📦 Batch Size: ${BATCH_SIZE} testcases per API call`);
+    console.log(`   🔄 Concurrent Batch Calls: ${CONCURRENT_LIMIT}`);
     console.log(`   💾 MongoDB Batch Size: ${MONGODB_BATCH_SIZE}`);
-    console.log(`   ⏰ Delay Between Batches: ${DELAY_BETWEEN_BATCHES}ms`);
-    console.log(`   🌐 API Base: ${TESTLEAF_API_BASE}`);
+    console.log(`   ⏰ Delay Between Batch Groups: ${DELAY_BETWEEN_BATCHES}ms`);
+    console.log(`   🌐 API Endpoint: ${TESTLEAF_API_BASE}/embedding/batch/${USER_EMAIL}`);
     console.log(`   📧 User Email: ${USER_EMAIL}`);
     console.log(`   🗄️  Database: ${process.env.DB_NAME}`);
     console.log(`   📦 Collection: ${process.env.COLLECTION_NAME}`);
     
-    // Estimated time calculation
-    const estimatedTimePerCase = 150; // ms average with concurrency
-    const estimatedTotal = (testcases.length * estimatedTimePerCase) / 1000 / 60;
-    console.log(`   ⏱️  Estimated Time: ${estimatedTotal.toFixed(1)} minutes\n`);
+    // Create batches for concurrent processing
+    const batches = [];
+    for (let i = 0; i < testcases.length; i += BATCH_SIZE) {
+      batches.push({
+        testcases: testcases.slice(i, i + BATCH_SIZE),
+        batchNumber: Math.floor(i / BATCH_SIZE) + 1
+      });
+    }
+    
+    const totalBatches = batches.length;
+    
+    // Estimated time calculation for batch processing
+    const batchGroupsCount = Math.ceil(totalBatches / CONCURRENT_LIMIT);
+    const estimatedTimePerBatch = 3; // seconds average for batch API call
+    const estimatedTotal = (batchGroupsCount * estimatedTimePerBatch + (batchGroupsCount - 1) * DELAY_BETWEEN_BATCHES / 1000) / 60;
+    console.log(`   📊 Total Batches: ${totalBatches}`);
+    console.log(`   🏃 Batch Groups: ${batchGroupsCount}`);
+    console.log(`   ⏱️  Estimated Time: ${estimatedTotal.toFixed(1)} minutes (Much faster with batch API!)\n`);
 
     let totalCost = 0;
     let totalTokens = 0;
     let totalInserted = 0;
     let totalFailed = 0;
     let processedCount = 0;
+    console.log(`📦 Created ${totalBatches} batches of ~${BATCH_SIZE} testcases each\n`);
 
-    // Process in optimized batches
-    for (let i = 0; i < testcases.length; i += BATCH_SIZE) {
-      const batch = testcases.slice(i, i + BATCH_SIZE);
-      const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
-      const totalBatches = Math.ceil(testcases.length / BATCH_SIZE);
+    // Process batches with concurrency control
+    for (let i = 0; i < batches.length; i += CONCURRENT_LIMIT) {
+      const concurrentBatches = batches.slice(i, i + CONCURRENT_LIMIT);
       
-      // Generate embeddings concurrently for this batch
-      const embeddingPromises = batch.map((testcase, batchIndex) => 
-        generateTestcaseEmbedding(testcase, i + batchIndex, testcases.length)
+      // Process multiple batches concurrently
+      const batchPromises = concurrentBatches.map(batch => 
+        generateBatchEmbeddings(batch.testcases, batch.batchNumber, totalBatches)
       );
 
-      const embeddingResults = await Promise.allSettled(embeddingPromises);
+      const batchResults = await Promise.allSettled(batchPromises);
       
-      // Process results and prepare for DB insertion
-      const successfulEmbeddings = [];
-      let batchCost = 0;
-      let batchTokens = 0;
+      // Process results from concurrent batches
+      for (const batchResult of batchResults) {
+        if (batchResult.status === 'fulfilled') {
+          const result = batchResult.value;
+          
+          if (result.success) {
+            // Update progress tracking
+            processedCount += result.batchSize;
+            totalCost += result.totalCost;
+            totalTokens += result.totalTokens;
+            progress.update(processedCount, result.totalCost, result.totalTokens);
 
-      embeddingResults.forEach((result, index) => {
-        if (result.status === 'fulfilled' && !result.value.error) {
-          successfulEmbeddings.push(result.value);
-          batchCost += result.value.cost;
-          batchTokens += result.value.tokens;
-        }
-        processedCount++;
-      });
-
-      // Update progress
-      progress.update(processedCount, batchCost, batchTokens);
-
-      // Insert to MongoDB in smaller sub-batches if needed
-      let insertedInBatch = 0;
-      let failedInBatch = 0;
-
-      if (successfulEmbeddings.length > 0) {
-        for (let j = 0; j < successfulEmbeddings.length; j += MONGODB_BATCH_SIZE) {
-          const subBatch = successfulEmbeddings.slice(j, j + MONGODB_BATCH_SIZE);
-          const insertResult = await insertTestcasesBatch(collection, subBatch);
-          insertedInBatch += insertResult.inserted;
-          failedInBatch += insertResult.failed;
+            // Insert successful embeddings to MongoDB
+            const successfulEmbeddings = result.results.filter(item => !item.error);
+            
+            if (successfulEmbeddings.length > 0) {
+              // Insert in sub-batches if needed
+              for (let j = 0; j < successfulEmbeddings.length; j += MONGODB_BATCH_SIZE) {
+                const subBatch = successfulEmbeddings.slice(j, j + MONGODB_BATCH_SIZE);
+                const insertResult = await insertTestcasesBatch(collection, subBatch);
+                totalInserted += insertResult.inserted;
+                totalFailed += insertResult.failed;
+              }
+            }
+            
+            totalFailed += (result.batchSize - successfulEmbeddings.length);
+          } else {
+            // Handle failed batch
+            processedCount += result.batchSize;
+            totalFailed += result.batchSize;
+            progress.update(processedCount, 0, 0);
+            console.error(`❌ Batch failed: ${result.error}`);
+          }
+        } else {
+          console.error(`❌ Batch promise rejected:`, batchResult.reason);
         }
       }
 
-      totalCost += batchCost;
-      totalTokens += batchTokens;
-      totalInserted += insertedInBatch;
-      totalFailed += failedInBatch + (batch.length - successfulEmbeddings.length);
-
-      // Only log batch details for first few and last few batches to reduce spam
-      if (batchNumber <= 3 || batchNumber >= totalBatches - 2 || batchNumber % 20 === 0) {
-        console.log(`📦 Batch ${batchNumber}/${totalBatches}: ${insertedInBatch} inserted, ${failedInBatch} failed | Cost: $${batchCost.toFixed(6)}`);
-      }
-
-      // Smart delay - reduce delay as we process more to speed up
-      if (i + BATCH_SIZE < testcases.length) {
-        const adaptiveDelay = Math.max(100, DELAY_BETWEEN_BATCHES - (batchNumber * 5));
-        await new Promise(resolve => setTimeout(resolve, adaptiveDelay));
+      // Delay between concurrent batch groups
+      if (i + CONCURRENT_LIMIT < batches.length) {
+        console.log(`⏸️  Waiting ${DELAY_BETWEEN_BATCHES}ms before next batch group...`);
+        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
       }
     }
 
@@ -301,6 +333,7 @@ async function main() {
     console.log(`   📊 Average Cost per Test Case: $${(totalCost / testcases.length).toFixed(8)}`);
     console.log(`   📊 Average Tokens per Test Case: ${Math.round(totalTokens / testcases.length)}`);
     console.log(`   💡 Speedup vs Sequential: ${((testcases.length * 0.5 / 60) / (totalTime / 60)).toFixed(1)}x faster`);
+    console.log(`   🚀 Batch API Efficiency: ${((testcases.length / totalBatches) * CONCURRENT_LIMIT).toFixed(1)} testcases processed per API call group`);
 
   } catch (err) {
     if (err.response) {

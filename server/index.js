@@ -19,6 +19,11 @@ dotenv.config();
 // Fix DNS resolution issue on macOS
 dns.setServers(['8.8.8.8', '8.8.4.4']);
 
+// Testleaf API configuration
+const TESTLEAF_API_BASE = process.env.TESTLEAF_API_BASE || 'https://api.testleaf.com/ai';
+const USER_EMAIL = process.env.USER_EMAIL;
+const AUTH_TOKEN = process.env.AUTH_TOKEN;
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -865,15 +870,19 @@ Provide detailed insights with specific examples from the test cases. Be thoroug
       ? `Analyze the following healthcare test cases in detail. Provide comprehensive coverage analysis:\n\n${resultsText}`
       : `Summarize the following test cases:\n\n${resultsText}`;
 
-    // Use OpenAI API directly for chat completion (TestLeaf doesn't support this endpoint)
-    const apiKey = process.env.OPENAI_API_KEY;
+    // Use Testleaf API for chat completion
+    console.log('🔧 Testleaf Config Check:');
+    console.log('   API Base:', TESTLEAF_API_BASE);
+    console.log('   User Email:', USER_EMAIL);
+    console.log('   Auth Token:', AUTH_TOKEN ? `${AUTH_TOKEN.substring(0, 5)}...` : 'NOT SET');
     
-    if (!apiKey) {
-      throw new Error('OPENAI_API_KEY is required for summarization feature');
+    if (!TESTLEAF_API_BASE || !USER_EMAIL || !AUTH_TOKEN) {
+      throw new Error('TESTLEAF_API_BASE, USER_EMAIL, and AUTH_TOKEN are required for summarization feature');
     }
     
-    // Use OpenAI's official endpoint
-    const apiUrl = 'https://api.openai.com/v1/chat/completions';
+    // Use Testleaf chat completions endpoint
+    const apiUrl = `${TESTLEAF_API_BASE}/v1/chat/completions`;
+    console.log('🌐 Making request to:', apiUrl);
 
     const response = await axios.post(apiUrl, {
       model: 'gpt-4o-mini',
@@ -881,31 +890,32 @@ Provide detailed insights with specific examples from the test cases. Be thoroug
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
       ],
-      temperature: 0.7,
+      temperature: 0.2,
       max_tokens: summaryType === 'detailed' ? 1000 : 300
     }, {
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'Authorization': `Bearer ${AUTH_TOKEN}`
       }
     });
 
     // Log the response for debugging
-    console.log('OpenAI API Response:', JSON.stringify(response.data, null, 2));
+    console.log('Testleaf API Response:', JSON.stringify(response.data, null, 2));
 
-    // Check if response has expected structure
-    if (!response.data || !response.data.choices || !response.data.choices[0]) {
+    // Check if response has expected structure (Testleaf API transaction response)
+    if (!response.data || !response.data.transaction || !response.data.transaction.response) {
       throw new Error(`Unexpected API response structure: ${JSON.stringify(response.data)}`);
     }
 
-    // OpenAI API response structure (direct, not wrapped like TestLeaf)
-    const summary = response.data.choices[0].message.content;
-    const usage = response.data.usage;
+    // Testleaf API response structure (wrapped in transaction)
+    const openaiResponse = response.data.transaction.response;
+    const summary = openaiResponse.choices[0].message.content;
+    const usage = openaiResponse.usage;
 
-    // Calculate cost (gpt-4o-mini pricing: $0.150 per 1M input tokens, $0.600 per 1M output tokens)
-    const inputCost = (usage.prompt_tokens / 1000000) * 0.150;
-    const outputCost = (usage.completion_tokens / 1000000) * 0.600;
-    const totalCost = inputCost + outputCost;
+    // Extract cost from Testleaf response 
+    const totalCost = response.data.transaction.cost || 0;
+    const inputCost = totalCost * 0.15; // Approximate input cost based on gpt-4o-mini pricing
+    const outputCost = totalCost * 0.85; // Approximate output cost
 
     res.json({
       summary,
@@ -931,7 +941,7 @@ Provide detailed insights with specific examples from the test cases. Be thoroug
       error: 'Failed to summarize results', 
       details: error.message,
       apiError: error.response?.data,
-      hint: 'Make sure TESTLEAF_API_KEY or OPENAI_API_KEY is set in .env file'
+      hint: 'Make sure TESTLEAF_API_BASE, USER_EMAIL, and AUTH_TOKEN are set in .env file'
     });
   }
 });
@@ -939,46 +949,57 @@ Provide detailed insights with specific examples from the test cases. Be thoroug
 // ======================== Test Prompt Endpoint ========================
 app.post('/api/test-prompt', async (req, res) => {
   try {
-    const { prompt, temperature = 0.7, maxTokens = 1000 } = req.body;
+    const { prompt, temperature = 0.2, maxTokens = 5000 } = req.body;
     
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
+    // Use Testleaf API for chat completion
+    console.log('🔧 Testleaf Config Check (Prompt Testing):');
+    console.log('   API Base:', TESTLEAF_API_BASE);
+    console.log('   User Email:', USER_EMAIL);
+    console.log('   Auth Token:', AUTH_TOKEN ? `${AUTH_TOKEN.substring(0, 5)}...` : 'NOT SET');
     
-    if (!apiKey) {
-      throw new Error('OPENAI_API_KEY is required for prompt testing');
+    if (!TESTLEAF_API_BASE || !USER_EMAIL || !AUTH_TOKEN) {
+      throw new Error('TESTLEAF_API_BASE, USER_EMAIL, and AUTH_TOKEN are required for prompt testing');
     }
     
-    const apiUrl = 'https://api.openai.com/v1/chat/completions';
+    const apiUrl = `${TESTLEAF_API_BASE}/v1/chat/completions`;
+    console.log('🌐 Making request to:', apiUrl);
 
-    const response = await axios.post(apiUrl, {
+    const requestData = {
       model: 'gpt-4o-mini',
       messages: [
         { role: 'user', content: prompt }
       ],
       temperature: temperature,
-      max_tokens: maxTokens,
-      response_format: { type: "json_object" }
-    }, {
+      max_tokens: maxTokens
+    };
+    console.log('📤 Request data:', JSON.stringify(requestData, null, 2));
+    console.log('📤 Request headers:', { 'Authorization': AUTH_TOKEN ? `Bearer ${AUTH_TOKEN.substring(0, 8)}...` : 'NOT SET' });
+
+    const response = await axios.post(apiUrl, requestData, {
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'Authorization': `Bearer ${AUTH_TOKEN}`
       }
     });
 
-    if (!response.data || !response.data.choices || !response.data.choices[0]) {
-      throw new Error(`Unexpected API response structure`);
+    // Check if response has expected structure (Testleaf API transaction response)
+    if (!response.data || !response.data.transaction || !response.data.transaction.response) {
+      throw new Error(`Unexpected API response structure: ${JSON.stringify(response.data)}`);
     }
 
-    const aiResponse = response.data.choices[0].message.content;
-    const usage = response.data.usage;
+    // Extract data from Testleaf response structure (wrapped in transaction)
+    const openaiResponse = response.data.transaction.response;
+    const aiResponse = openaiResponse.choices[0].message.content;
+    const usage = openaiResponse.usage;
 
-    // Calculate cost
-    const inputCost = (usage.prompt_tokens / 1000000) * 0.150;
-    const outputCost = (usage.completion_tokens / 1000000) * 0.600;
-    const totalCost = inputCost + outputCost;
+    // Extract cost from Testleaf response
+    const totalCost = response.data.transaction.cost || 0;
+    const inputCost = totalCost * 0.15; // Approximate input cost based on gpt-4o-mini pricing
+    const outputCost = totalCost * 0.85; // Approximate output cost
 
     // Try to parse as JSON
     let parsedResponse;
@@ -1065,7 +1086,7 @@ app.post('/api/search', async (req, res) => {
       {
         headers: {
           'Content-Type': 'application/json',
-          ...(AUTH_TOKEN && { 'Authorization': `Bearer ${AUTH_TOKEN}` })
+          'Authorization': `Bearer ${AUTH_TOKEN}`
         }
       }
     );
@@ -1425,7 +1446,7 @@ app.post('/api/search/hybrid', async (req, res) => {
       {
         headers: {
           'Content-Type': 'application/json',
-          ...(AUTH_TOKEN && { 'Authorization': `Bearer ${AUTH_TOKEN}` })
+          'Authorization': `Bearer ${AUTH_TOKEN}`
         }
       }
     );
@@ -1642,7 +1663,7 @@ app.post('/api/search/rerank', async (req, res) => {
       {
         headers: {
           'Content-Type': 'application/json',
-          ...(AUTH_TOKEN && { 'Authorization': `Bearer ${AUTH_TOKEN}` })
+          'Authorization': `Bearer ${AUTH_TOKEN}`
         }
       }
     );
