@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from 'react';
 import {
-  Paper,
   Typography,
   Box,
   Button,
@@ -30,8 +29,6 @@ import {
   Score as ScoreIcon,
   Description as DescriptionIcon,
   Assignment as AssignmentIcon,
-  DateRange as DateRangeIcon,
-  TipsAndUpdates as TipsIcon,
   FilterList as FilterIcon
 } from '@mui/icons-material';
 import { useSnackbar } from 'notistack';
@@ -40,7 +37,7 @@ import axios from 'axios';
 const API_BASE = 'http://localhost:3001/api';
 
 function QuerySearch() {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState('Share Diagnostic Reports with Patients via WhatsApp');
   const [limit, setLimit] = useState(5);
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState([]);
@@ -152,11 +149,6 @@ function QuerySearch() {
 
   const formatScore = (score) => {
     return parseFloat(score).toFixed(4);
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString() + ' ' + 
-           new Date(dateString).toLocaleTimeString();
   };
 
   const getScoreColor = (score) => {
@@ -324,7 +316,7 @@ function QuerySearch() {
                                     value={moduleFilter}
                                     label="Module"
                                     onChange={(e) => setModuleFilter(e.target.value)}
-                                    sx={{ bgcolor: 'background.paper' }}
+                                    sx={{ bgcolor: 'background.paper', minWidth: '200px',width: '100%'}}
                                     MenuProps={{
                                       PaperProps: {
                                         sx: {
@@ -363,7 +355,7 @@ function QuerySearch() {
                                     value={priorityFilter}
                                     label="Priority"
                                     onChange={(e) => setPriorityFilter(e.target.value)}
-                                    sx={{ bgcolor: 'background.paper' }}
+                                    sx={{ bgcolor: 'background.paper' , minWidth: '200px',width: '100%' }}
                                     MenuProps={{
                                       PaperProps: {
                                         sx: {
@@ -401,7 +393,7 @@ function QuerySearch() {
                                     value={riskFilter}
                                     label="Risk Level"
                                     onChange={(e) => setRiskFilter(e.target.value)}
-                                    sx={{ bgcolor: 'background.paper' }}
+                                    sx={{ bgcolor: 'background.paper' , minWidth: '200px',width: '100%'}}
                                     MenuProps={{
                                       PaperProps: {
                                         sx: {
@@ -439,7 +431,7 @@ function QuerySearch() {
                                     value={automationFilter}
                                     label="Test Type"
                                     onChange={(e) => setAutomationFilter(e.target.value)}
-                                    sx={{ bgcolor: 'background.paper' }}
+                                    sx={{ bgcolor: 'background.paper' , minWidth: '200px',width: '100%'}}
                                     MenuProps={{
                                       PaperProps: {
                                         sx: {

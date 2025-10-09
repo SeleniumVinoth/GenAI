@@ -21,13 +21,10 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  FormControlLabel,
-  Switch,
   Tabs,
   Tab,
   IconButton,
-  Tooltip,
-  Badge
+  Tooltip
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -50,7 +47,7 @@ function TabPanel({ children, value, index }) {
 }
 
 function QueryPreprocessing() {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState('Share Diagnostic Reports with Patients via WhatsApp');
   const [preprocessResult, setPreprocessResult] = useState(null);
   const [searchResults, setSearchResults] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -60,10 +57,10 @@ function QueryPreprocessing() {
   const [copiedIndex, setCopiedIndex] = useState(null);
   
   // Options
-  const [enableAbbreviations, setEnableAbbreviations] = useState(true);
-  const [enableSynonyms, setEnableSynonyms] = useState(true);
-  const [maxVariations, setMaxVariations] = useState(5);
-  const [searchType, setSearchType] = useState('vector'); // 'vector', 'bm25', 'hybrid'
+  const [enableAbbreviations] = useState(true);
+  const [enableSynonyms] = useState(true);
+  const [maxVariations] = useState(5);
+  const [searchType] = useState('vector'); // 'vector', 'bm25', 'hybrid'
 
   // Preprocess query
   const handlePreprocess = async () => {

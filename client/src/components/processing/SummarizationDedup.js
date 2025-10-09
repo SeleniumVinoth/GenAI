@@ -16,16 +16,9 @@ import {
   Tab,
   IconButton,
   Tooltip,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   FormControlLabel,
   Switch,
-  Badge,
-  Collapse
+  Badge
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -33,9 +26,6 @@ import {
   CheckCircle as CheckCircleIcon,
   Summarize as SummarizeIcon,
   FilterList as DeduplicateIcon,
-  ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon,
-  MonetizationOn as CostIcon,
   Token as TokenIcon
 } from '@mui/icons-material';
 
@@ -365,7 +355,6 @@ function SummarizationDedup() {
                 size="small"
                 sx={{ width: 150 }}
                 inputProps={{ min: 0.5, max: 1, step: 0.05 }}
-                helperText="0.5-1.0"
               />
               <TextField
                 select

@@ -23,7 +23,6 @@ import {
   Collapse,
   Switch,
   FormControlLabel,
-  useTheme,
   Fade
 } from '@mui/material';
 import {
@@ -47,16 +46,16 @@ import {
 import { SnackbarProvider } from 'notistack';
 
 // Import components
-import ConvertToJson from './components/ConvertToJson';
-import EmbeddingsStore from './components/EmbeddingsStore';
-import Settings from './components/Settings';
-import QuerySearch from './components/QuerySearch';
-import BM25Search from './components/BM25Search';
-import HybridSearch from './components/HybridSearch';
-import RerankingSearch from './components/RerankingSearch';
-import QueryPreprocessing from './components/QueryPreprocessing';
-import SummarizationDedup from './components/SummarizationDedup';
-import PromptSchemaManager from './components/PromptSchemaManager';
+import ConvertToJson from './components/data/ConvertToJson';
+import EmbeddingsStore from './components/data/EmbeddingsStore';
+import Settings from './components/settings/Settings';
+import QuerySearch from './components/search/QuerySearch';
+import BM25Search from './components/search/BM25Search';
+import HybridSearch from './components/search/HybridSearch';
+import RerankingSearch from './components/search/RerankingSearch';
+import QueryPreprocessing from './components/processing/QueryPreprocessing';
+import SummarizationDedup from './components/processing/SummarizationDedup';
+import PromptSchemaManager from './components/processing/PromptSchemaManager';
 
 // Enterprise color palette
 const createEnterpriseTheme = (mode) => createTheme({

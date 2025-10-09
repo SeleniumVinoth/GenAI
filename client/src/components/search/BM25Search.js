@@ -10,7 +10,6 @@ import {
   Chip,
   Alert,
   Collapse,
-  IconButton,
   Grid,
   FormControl,
   InputLabel,
@@ -30,7 +29,7 @@ import { useSnackbar } from 'notistack';
 const API_BASE = 'http://localhost:3001/api';
 
 function BM25Search() {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState('Share Diagnostic Reports with Patients via WhatsApp');
   const [limit, setLimit] = useState(10);
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState([]);
@@ -81,7 +80,7 @@ function BM25Search() {
         types: []
       });
     }
-  }, [enqueueSnackbar]);
+  }, []);
 
   React.useEffect(() => {
     loadFilterOptions();
@@ -257,6 +256,8 @@ function BM25Search() {
                     value={moduleFilter}
                     onChange={(e) => setModuleFilter(e.target.value)}
                     label="Module"
+                    sx={{ bgcolor: 'background.paper' , minWidth: '200px',width: '100%'}}
+
                   >
                     <MenuItem value="">All Modules</MenuItem>
                     {(filterOptions.modules || []).map((module) => (
@@ -273,6 +274,7 @@ function BM25Search() {
                     value={priorityFilter}
                     onChange={(e) => setPriorityFilter(e.target.value)}
                     label="Priority"
+                    sx={{ bgcolor: 'background.paper' , minWidth: '200px',width: '100%'}}
                   >
                     <MenuItem value="">All Priorities</MenuItem>
                     {(filterOptions.priorities || []).map((priority) => (
@@ -289,6 +291,8 @@ function BM25Search() {
                     value={riskFilter}
                     onChange={(e) => setRiskFilter(e.target.value)}
                     label="Risk"
+                    sx={{ bgcolor: 'background.paper' , minWidth: '200px',width: '100%'}}
+
                   >
                     <MenuItem value="">All Risk Levels</MenuItem>
                     {(filterOptions.risks || []).map((risk) => (
@@ -305,6 +309,7 @@ function BM25Search() {
                     value={automationFilter}
                     onChange={(e) => setAutomationFilter(e.target.value)}
                     label="Type"
+                    sx={{ bgcolor: 'background.paper' , minWidth: '200px',width: '100%'}}
                   >
                     <MenuItem value="">All Types</MenuItem>
                     {(filterOptions.types || []).map((type) => (
