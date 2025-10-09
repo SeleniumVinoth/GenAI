@@ -68,12 +68,26 @@ function HybridSearch() {
       const response = await fetch(`${API_BASE}/metadata/distinct`);
       const data = await response.json();
       
-      if (data.success) {
+      if (data.success && data.data) {
         setFilterOptions(data.data);
+      } else {
+        // Set empty arrays if no data
+        setFilterOptions({
+          modules: [],
+          priorities: [],
+          risks: [],
+          types: []
+        });
       }
     } catch (err) {
       console.error('Failed to load filter options:', err);
-      enqueueSnackbar('Failed to load filter options', { variant: 'warning' });
+      // Set empty arrays on error
+      setFilterOptions({
+        modules: [],
+        priorities: [],
+        risks: [],
+        types: []
+      });
     }
   }, [enqueueSnackbar]);
 
@@ -180,7 +194,13 @@ function HybridSearch() {
   };
 
   const formatScore = (score) => {
+    // Hybrid scores are normalized 0-1, so convert to percentage
     return (score * 100).toFixed(1) + '%';
+  };
+
+  const formatRawScore = (score) => {
+    // Raw BM25/Vector scores are absolute values
+    return score ? score.toFixed(2) : '0.00';
   };
 
   const formatDate = (dateString) => {
@@ -226,6 +246,12 @@ function HybridSearch() {
               onKeyPress={handleKeyPress}
               placeholder="e.g., merge UHID, patient registration, login tests..."
               disabled={searching}
+               sx={{ 
+                '& .MuiOutlinedInput-root': { 
+                  minWidth: '800px',
+                  width: '100%'
+                } 
+              }}
             />
           </Grid>
 
@@ -538,10 +564,10 @@ function HybridSearch() {
                       </Typography>
                       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                         <Typography variant="caption" color="text.secondary">
-                          🔤 BM25: {formatScore(result.bm25ScoreNormalized || 0)}
+                          🔤 BM25: {formatScore(result.bm25ScoreNormalized || 0)} (raw: {formatRawScore(result.bm25Score)})
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          🧠 Vector: {formatScore(result.vectorScoreNormalized || 0)}
+                          🧠 Vector: {formatScore(result.vectorScoreNormalized || 0)} (raw: {formatRawScore(result.vectorScore)})
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
                           ⚖️ Hybrid: {formatScore(result.hybridScore)}

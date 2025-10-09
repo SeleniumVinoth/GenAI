@@ -665,6 +665,216 @@ app.post('/api/env', (req, res) => {
   }
 });
 
+// ======================== Query Preprocessing ========================
+// Preprocess query: normalization, abbreviation expansion, synonym expansion
+app.post('/api/search/preprocess', async (req, res) => {
+  try {
+    const { query, options = {} } = req.body;
+    
+    if (!query) {
+      return res.status(400).json({ error: 'Query is required' });
+    }
+
+    // Import preprocessing modules dynamically
+    const { preprocessQuery } = await import('../src/scripts/query-preprocessing/queryPreprocessor.js');
+
+    // Preprocess the query
+    const result = preprocessQuery(query, {
+      enableAbbreviations: options.enableAbbreviations !== false,
+      enableSynonyms: options.enableSynonyms !== false,
+      maxSynonymVariations: options.maxSynonymVariations || 5,
+      customAbbreviations: options.customAbbreviations || {},
+      customSynonyms: options.customSynonyms || {},
+      smartExpansion: options.smartExpansion || false,
+      preserveTestCaseIds: options.preserveTestCaseIds !== false
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Preprocessing error:', error);
+    res.status(500).json({ 
+      error: 'Failed to preprocess query', 
+      details: error.message 
+    });
+  }
+});
+
+// Analyze query (show what preprocessing would do without applying)
+app.post('/api/search/analyze', async (req, res) => {
+  try {
+    const { query } = req.body;
+    
+    if (!query) {
+      return res.status(400).json({ error: 'Query is required' });
+    }
+
+    const { analyzeQuery } = await import('../src/scripts/query-preprocessing/queryPreprocessor.js');
+    const analysis = analyzeQuery(query);
+
+    res.json(analysis);
+  } catch (error) {
+    console.error('Analysis error:', error);
+    res.status(500).json({ 
+      error: 'Failed to analyze query', 
+      details: error.message 
+    });
+  }
+});
+
+// ======================== Summarization & Deduplication ========================
+
+// Deduplicate results based on similarity
+app.post('/api/search/deduplicate', async (req, res) => {
+  try {
+    const { results, threshold = 0.85 } = req.body;
+    
+    if (!results || !Array.isArray(results)) {
+      return res.status(400).json({ error: 'Results array is required' });
+    }
+
+    const deduplicated = [];
+    const duplicates = [];
+    const seenTitles = new Map();
+
+    for (const result of results) {
+      const title = result.title?.toLowerCase() || '';
+      const id = result.id || '';
+
+      // Check for exact title match
+      let isDuplicate = false;
+      
+      for (const [seenTitle, seenResult] of seenTitles.entries()) {
+        // Calculate similarity (Jaccard similarity for simple implementation)
+        const similarity = calculateTextSimilarity(title, seenTitle);
+        
+        if (similarity >= threshold) {
+          isDuplicate = true;
+          duplicates.push({
+            ...result,
+            duplicateOf: seenResult.id,
+            similarity: similarity.toFixed(3)
+          });
+          break;
+        }
+      }
+
+      if (!isDuplicate) {
+        deduplicated.push(result);
+        seenTitles.set(title, result);
+      }
+    }
+
+    res.json({
+      original: results,
+      deduplicated,
+      duplicates,
+      stats: {
+        originalCount: results.length,
+        deduplicatedCount: deduplicated.length,
+        duplicatesRemoved: duplicates.length,
+        reductionPercentage: ((duplicates.length / results.length) * 100).toFixed(1)
+      }
+    });
+  } catch (error) {
+    console.error('Deduplication error:', error);
+    res.status(500).json({ 
+      error: 'Failed to deduplicate results', 
+      details: error.message 
+    });
+  }
+});
+
+// Summarize search results using TestLeaf API
+app.post('/api/search/summarize', async (req, res) => {
+  try {
+    const { results, summaryType = 'concise' } = req.body;
+    
+    if (!results || !Array.isArray(results)) {
+      return res.status(400).json({ error: 'Results array is required' });
+    }
+
+    if (results.length === 0) {
+      return res.json({
+        summary: 'No results to summarize',
+        tokens: { prompt: 0, completion: 0, total: 0 },
+        cost: 0
+      });
+    }
+
+    // Prepare the content for summarization
+    const resultsText = results.map((r, idx) => 
+      `${idx + 1}. ${r.id || 'N/A'}: ${r.title || 'No title'}\n   ${r.description || 'No description'}`
+    ).join('\n\n');
+
+    const systemPrompt = summaryType === 'detailed'
+      ? 'You are a QA expert. Provide a detailed summary of the test cases, grouping them by functionality and highlighting key testing scenarios.'
+      : 'You are a QA expert. Provide a concise summary of the test cases in 2-3 sentences, highlighting the main functionality being tested.';
+
+    const userPrompt = `Summarize the following test cases:\n\n${resultsText}`;
+
+    // Call TestLeaf Chat Completion API
+    const apiKey = process.env.TESTLEAF_API_KEY || process.env.OPENAI_API_KEY;
+    const apiUrl = 'https://api.testleaf.com/v1/chat/completions';
+
+    const response = await axios.post(apiUrl, {
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.7,
+      max_tokens: summaryType === 'detailed' ? 1000 : 300
+    }, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const summary = response.data.choices[0].message.content;
+    const usage = response.data.usage;
+
+    // Calculate cost (gpt-4o-mini pricing: $0.150 per 1M input tokens, $0.600 per 1M output tokens)
+    const inputCost = (usage.prompt_tokens / 1000000) * 0.150;
+    const outputCost = (usage.completion_tokens / 1000000) * 0.600;
+    const totalCost = inputCost + outputCost;
+
+    res.json({
+      summary,
+      tokens: {
+        prompt: usage.prompt_tokens,
+        completion: usage.completion_tokens,
+        total: usage.total_tokens
+      },
+      cost: {
+        input: inputCost.toFixed(6),
+        output: outputCost.toFixed(6),
+        total: totalCost.toFixed(6)
+      },
+      model: 'gpt-4o-mini',
+      summaryType
+    });
+  } catch (error) {
+    console.error('Summarization error:', error);
+    res.status(500).json({ 
+      error: 'Failed to summarize results', 
+      details: error.message,
+      hint: 'Make sure TESTLEAF_API_KEY or OPENAI_API_KEY is set in .env file'
+    });
+  }
+});
+
+// Helper function to calculate text similarity (Jaccard similarity)
+function calculateTextSimilarity(text1, text2) {
+  const words1 = new Set(text1.toLowerCase().split(/\s+/));
+  const words2 = new Set(text2.toLowerCase().split(/\s+/));
+  
+  const intersection = new Set([...words1].filter(x => words2.has(x)));
+  const union = new Set([...words1, ...words2]);
+  
+  return intersection.size / union.size;
+}
+
 // Search vector database
 app.post('/api/search', async (req, res) => {
   try {
@@ -1217,6 +1427,334 @@ app.post('/api/search/hybrid', async (req, res) => {
     console.error('❌ Hybrid Search error:', error);
     res.status(500).json({ 
       error: 'Hybrid search failed', 
+      details: error.message 
+    });
+  }
+});
+
+// Reranking endpoint with Score Fusion and Normalization
+app.post('/api/search/rerank', async (req, res) => {
+  try {
+    const { 
+      query, 
+      limit = 10, 
+      filters = {}, 
+      fusionMethod = 'rrf', // rrf, weighted, or reciprocal
+      rerankTopK = 50,
+      bm25Weight = 0.4,
+      vectorWeight = 0.6
+    } = req.body;
+    
+    if (!query) {
+      return res.status(400).json({ error: 'Query is required' });
+    }
+
+    const startTime = Date.now();
+
+    // Create a MongoClient
+    const mongoClient = new MongoClient(process.env.MONGODB_URI, {
+      ssl: true,
+      tlsAllowInvalidCertificates: true,
+      tlsAllowInvalidHostnames: true,
+      serverSelectionTimeoutMS: 30000,
+      connectTimeoutMS: 30000,
+      socketTimeoutMS: 30000,
+    });
+    await mongoClient.connect();
+
+    const db = mongoClient.db(process.env.DB_NAME);
+    const collection = db.collection(process.env.COLLECTION_NAME);
+
+    console.log(`\n🔄 Reranking Search with Score Fusion for: "${query}"`);
+    console.log(`📊 Fusion Method: ${fusionMethod.toUpperCase()}, Top-K: ${rerankTopK}, Final Limit: ${limit}`);
+
+    // Step 1: Get both BM25 and Vector results
+    const TESTLEAF_API_BASE = process.env.TESTLEAF_API_BASE || 'https://api.testleaf.com/ai';
+    const USER_EMAIL = process.env.USER_EMAIL;
+    const AUTH_TOKEN = process.env.AUTH_TOKEN;
+
+    // Generate embedding for vector search
+    const embeddingResponse = await axios.post(
+      `${TESTLEAF_API_BASE}/embedding/text/${USER_EMAIL}`,
+      {
+        input: query,
+        model: "text-embedding-3-small"
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(AUTH_TOKEN && { 'Authorization': `Bearer ${AUTH_TOKEN}` })
+        }
+      }
+    );
+
+    if (embeddingResponse.data.status !== 200) {
+      throw new Error(`Testleaf API error: ${embeddingResponse.data.message}`);
+    }
+
+    const queryVector = embeddingResponse.data.data[0].embedding;
+    const embeddingCost = embeddingResponse.data.cost || 0;
+    const embeddingTokens = embeddingResponse.data.usage?.total_tokens || 0;
+
+    // Parallel search: BM25 and Vector
+    const searchStartTime = Date.now();
+
+    // BM25 Pipeline
+    const weights = {
+      id: 10.0,
+      title: 8.0,
+      module: 5.0,
+      description: 2.0,
+      expectedResults: 1.5,
+      steps: 1.0,
+      preRequisites: 0.8
+    };
+
+    const searchFields = Object.entries(weights).map(([field, weight]) => ({
+      text: {
+        query: query,
+        path: field,
+        fuzzy: { maxEdits: 1, prefixLength: 2 },
+        score: { boost: { value: weight } }
+      }
+    }));
+
+    const bm25Pipeline = [
+      {
+        $search: {
+          index: process.env.BM25_INDEX_NAME,
+          compound: {
+            should: searchFields,
+            minimumShouldMatch: 1
+          }
+        }
+      },
+      {
+        $addFields: {
+          bm25Score: { $meta: "searchScore" }
+        }
+      },
+      { $limit: rerankTopK }
+    ];
+
+    if (Object.keys(filters).length > 0) {
+      bm25Pipeline.push({ $match: filters });
+    }
+
+    // Vector Pipeline
+    const vectorPipeline = [
+      {
+        $vectorSearch: {
+          queryVector,
+          path: "embedding",
+          numCandidates: Math.max(rerankTopK * 2, 100),
+          limit: rerankTopK,
+          index: process.env.VECTOR_INDEX_NAME,
+          ...(Object.keys(filters).length > 0 && { filter: filters })
+        }
+      },
+      {
+        $addFields: {
+          vectorScore: { $meta: "vectorSearchScore" }
+        }
+      },
+      { $project: { embedding: 0 } }
+    ];
+
+    // Execute both searches in parallel
+    const [bm25Results, vectorResults] = await Promise.all([
+      collection.aggregate(bm25Pipeline).toArray(),
+      collection.aggregate(vectorPipeline).toArray()
+    ]);
+
+    const searchTime = Date.now() - searchStartTime;
+    console.log(`✅ Retrieved ${bm25Results.length} BM25 + ${vectorResults.length} Vector results in ${searchTime}ms`);
+
+    // Step 2: Score Fusion and Normalization
+    const rerankStartTime = Date.now();
+    console.log(`🔄 Applying ${fusionMethod.toUpperCase()} score fusion...`);
+
+    // Create a map to combine results
+    const resultMap = new Map();
+
+    // Normalize scores using min-max normalization
+    const normalizeBM25 = (score, minScore, maxScore) => {
+      if (maxScore === minScore) return 1.0;
+      return (score - minScore) / (maxScore - minScore);
+    };
+
+    const normalizeVector = (score, minScore, maxScore) => {
+      if (maxScore === minScore) return 1.0;
+      return (score - minScore) / (maxScore - minScore);
+    };
+
+    // Get min/max scores for normalization
+    const bm25Scores = bm25Results.map(r => r.bm25Score);
+    const vectorScores = vectorResults.map(r => r.vectorScore);
+    const minBM25 = Math.min(...bm25Scores, 0);
+    const maxBM25 = Math.max(...bm25Scores, 1);
+    const minVector = Math.min(...vectorScores, 0);
+    const maxVector = Math.max(...vectorScores, 1);
+
+    // Process BM25 results
+    bm25Results.forEach((doc, index) => {
+      const id = doc._id.toString();
+      const normalizedScore = normalizeBM25(doc.bm25Score, minBM25, maxBM25);
+      
+      resultMap.set(id, {
+        ...doc,
+        bm25Score: doc.bm25Score,
+        bm25Normalized: normalizedScore,
+        bm25Rank: index + 1,
+        vectorScore: 0,
+        vectorNormalized: 0,
+        vectorRank: null,
+        foundIn: 'bm25'
+      });
+    });
+
+    // Process Vector results and merge
+    vectorResults.forEach((doc, index) => {
+      const id = doc._id.toString();
+      const normalizedScore = normalizeVector(doc.vectorScore, minVector, maxVector);
+      
+      if (resultMap.has(id)) {
+        // Document found in both
+        const existing = resultMap.get(id);
+        existing.vectorScore = doc.vectorScore;
+        existing.vectorNormalized = normalizedScore;
+        existing.vectorRank = index + 1;
+        existing.foundIn = 'both';
+      } else {
+        // Document only in vector
+        resultMap.set(id, {
+          ...doc,
+          bm25Score: 0,
+          bm25Normalized: 0,
+          bm25Rank: null,
+          vectorScore: doc.vectorScore,
+          vectorNormalized: normalizedScore,
+          vectorRank: index + 1,
+          foundIn: 'vector'
+        });
+      }
+    });
+
+    // Convert to array for processing
+    const allResults = Array.from(resultMap.values());
+
+    // Apply fusion method
+    let fusedResults = [];
+
+    if (fusionMethod === 'rrf') {
+      // Reciprocal Rank Fusion (RRF)
+      const k = 60; // RRF constant
+      fusedResults = allResults.map(doc => {
+        const bm25RRF = doc.bm25Rank ? 1 / (k + doc.bm25Rank) : 0;
+        const vectorRRF = doc.vectorRank ? 1 / (k + doc.vectorRank) : 0;
+        const fusedScore = bm25RRF + vectorRRF;
+        
+        return {
+          ...doc,
+          fusedScore,
+          fusionComponents: {
+            bm25RRF: bm25RRF.toFixed(4),
+            vectorRRF: vectorRRF.toFixed(4)
+          }
+        };
+      });
+    } else if (fusionMethod === 'weighted') {
+      // Weighted normalized scores
+      fusedResults = allResults.map(doc => {
+        const fusedScore = (doc.bm25Normalized * bm25Weight) + (doc.vectorNormalized * vectorWeight);
+        
+        return {
+          ...doc,
+          fusedScore,
+          fusionComponents: {
+            bm25Contribution: (doc.bm25Normalized * bm25Weight).toFixed(4),
+            vectorContribution: (doc.vectorNormalized * vectorWeight).toFixed(4)
+          }
+        };
+      });
+    } else if (fusionMethod === 'reciprocal') {
+      // Reciprocal scoring with weights
+      fusedResults = allResults.map(doc => {
+        const bm25Reciprocal = doc.bm25Rank ? (1 / doc.bm25Rank) * bm25Weight : 0;
+        const vectorReciprocal = doc.vectorRank ? (1 / doc.vectorRank) * vectorWeight : 0;
+        const fusedScore = bm25Reciprocal + vectorReciprocal;
+        
+        return {
+          ...doc,
+          fusedScore,
+          fusionComponents: {
+            bm25Reciprocal: bm25Reciprocal.toFixed(4),
+            vectorReciprocal: vectorReciprocal.toFixed(4)
+          }
+        };
+      });
+    }
+
+    // Sort by fused score
+    fusedResults.sort((a, b) => b.fusedScore - a.fusedScore);
+
+    // Add ranking information
+    fusedResults.forEach((doc, index) => {
+      doc.newRank = index + 1;
+      doc.originalRank = doc.bm25Rank || doc.vectorRank || index + 1;
+      doc.rankChange = doc.originalRank - doc.newRank;
+    });
+
+    const rerankingTime = Date.now() - rerankStartTime;
+
+    // Get before/after results
+    const beforeResults = (fusionMethod === 'rrf' ? vectorResults : bm25Results).slice(0, limit);
+    const afterResults = fusedResults.slice(0, limit);
+    const totalTime = Date.now() - startTime;
+
+    console.log(`✅ Score fusion complete in ${rerankingTime}ms`);
+    console.log(`📊 Top result: ${afterResults[0]?.id} (Found in: ${afterResults[0]?.foundIn})`);
+
+    await mongoClient.close();
+
+    // Calculate statistics
+    const bothCount = fusedResults.filter(r => r.foundIn === 'both').length;
+    const bm25OnlyCount = fusedResults.filter(r => r.foundIn === 'bm25').length;
+    const vectorOnlyCount = fusedResults.filter(r => r.foundIn === 'vector').length;
+
+    res.json({
+      success: true,
+      fusionMethod,
+      query,
+      filters,
+      results: afterResults,
+      beforeReranking: beforeResults,
+      afterReranking: afterResults,
+      reranked: true,
+      count: afterResults.length,
+      totalCandidates: fusedResults.length,
+      rerankTopK,
+      searchTime,
+      rerankingTime,
+      totalTime,
+      cost: embeddingCost,
+      tokens: embeddingTokens,
+      weights: { bm25: bm25Weight, vector: vectorWeight },
+      stats: {
+        foundInBoth: bothCount,
+        foundInBm25Only: bm25OnlyCount,
+        foundInVectorOnly: vectorOnlyCount,
+        topResultChanged: beforeResults[0]?.id !== afterResults[0]?.id,
+        significantReorderings: afterResults.filter(r => Math.abs(r.rankChange) >= 5).length,
+        averageFusedScore: (afterResults.reduce((sum, r) => sum + r.fusedScore, 0) / afterResults.length).toFixed(4)
+      },
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Reranking error:', error);
+    res.status(500).json({ 
+      error: 'Reranking failed', 
       details: error.message 
     });
   }

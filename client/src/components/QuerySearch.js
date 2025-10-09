@@ -257,11 +257,13 @@ function QuerySearch() {
                     multiline
                     rows={3}
                     helperText="Use descriptive terms related to test functionality"
-                    sx={{
-                      '& .MuiInputBase-root': {
-                        fontSize: '1rem',
-                      }
+                     sx={{ 
+                      '& .MuiOutlinedInput-root': { 
+                        minWidth: '800px',
+                        width: '100%'
+                      } 
                     }}
+                    
                   />
                 </Grid>
 

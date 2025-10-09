@@ -38,7 +38,10 @@ import {
   Brightness7 as LightModeIcon,
   NavigateNext as NavigateNextIcon,
   TextFields as KeywordIcon,
-  AutoFixHigh as HybridIcon
+  AutoFixHigh as HybridIcon,
+  CompareArrows as RerankIcon,
+  Psychology as PreprocessIcon,
+  Summarize as SummarizeIcon
 } from '@mui/icons-material';
 import { SnackbarProvider } from 'notistack';
 
@@ -49,6 +52,9 @@ import Settings from './components/Settings';
 import QuerySearch from './components/QuerySearch';
 import BM25Search from './components/BM25Search';
 import HybridSearch from './components/HybridSearch';
+import RerankingSearch from './components/RerankingSearch';
+import QueryPreprocessing from './components/QueryPreprocessing';
+import SummarizationDedup from './components/SummarizationDedup';
 
 // Enterprise color palette
 const createEnterpriseTheme = (mode) => createTheme({
@@ -165,6 +171,13 @@ const menuItems = [
     description: 'Configure environment'
   },
   { 
+    id: 'preprocess', 
+    label: 'Query Preprocessing', 
+    icon: <PreprocessIcon />, 
+    component: QueryPreprocessing,
+    description: 'Transform & expand queries'
+  },
+  { 
     id: 'query', 
     label: 'Vector Search', 
     icon: <SearchIcon />, 
@@ -184,6 +197,13 @@ const menuItems = [
     icon: <HybridIcon />, 
     component: HybridSearch,
     description: 'Combined BM25 + Vector'
+  },
+  { 
+    id: 'rerank', 
+    label: 'Score Fusion', 
+    icon: <RerankIcon />, 
+    component: RerankingSearch,
+    description: 'BM25+Vector fusion reranking'
   },
 ];
 
@@ -438,7 +458,7 @@ function App() {
             <Toolbar />
             <Toolbar variant="dense" /> {/* Space for secondary toolbar */}
             
-            <Container maxWidth="xl" sx={{ mt: 2 }}>
+            <Container maxWidth={false} sx={{ mt: 2, px: 4 }}>
               <Fade in={true} timeout={500}>
                 <Box>
                   {getCurrentComponent()}

@@ -60,12 +60,26 @@ function BM25Search() {
       const response = await fetch(`${API_BASE}/metadata/distinct`);
       const data = await response.json();
       
-      if (data.success) {
+      if (data.success && data.data) {
         setFilterOptions(data.data);
+      } else {
+        // Set empty arrays if no data
+        setFilterOptions({
+          modules: [],
+          priorities: [],
+          risks: [],
+          types: []
+        });
       }
     } catch (err) {
       console.error('Failed to load filter options:', err);
-      enqueueSnackbar('Failed to load filter options', { variant: 'warning' });
+      // Set empty arrays on error
+      setFilterOptions({
+        modules: [],
+        priorities: [],
+        risks: [],
+        types: []
+      });
     }
   }, [enqueueSnackbar]);
 
@@ -140,7 +154,9 @@ function BM25Search() {
   };
 
   const formatScore = (score) => {
-    return (score * 100).toFixed(1) + '%';
+    // BM25 scores are absolute values, not 0-1 normalized
+    // Display as-is for BM25, they typically range from 0-100
+    return score.toFixed(2);
   };
 
   const formatDate = (dateString) => {
@@ -149,9 +165,11 @@ function BM25Search() {
   };
 
   const getScoreColor = (score) => {
-    if (score >= 0.8) return 'success';
-    if (score >= 0.6) return 'info';
-    if (score >= 0.4) return 'warning';
+    // BM25 scores are absolute, typically 0-100+
+    // High scores (50+) are excellent matches
+    if (score >= 50) return 'success';
+    if (score >= 30) return 'info';
+    if (score >= 15) return 'warning';
     return 'error';
   };
 
@@ -180,6 +198,12 @@ function BM25Search() {
               onKeyPress={handleKeyPress}
               placeholder="e.g., merge UHID, TC_027, registration tests..."
               disabled={searching}
+               sx={{ 
+                '& .MuiOutlinedInput-root': { 
+                  minWidth: '800px',
+                  width: '100%'
+                } 
+              }}
             />
           </Grid>
 
@@ -235,7 +259,7 @@ function BM25Search() {
                     label="Module"
                   >
                     <MenuItem value="">All Modules</MenuItem>
-                    {filterOptions.modules.map((module) => (
+                    {(filterOptions.modules || []).map((module) => (
                       <MenuItem key={module} value={module}>{module}</MenuItem>
                     ))}
                   </Select>
@@ -251,7 +275,7 @@ function BM25Search() {
                     label="Priority"
                   >
                     <MenuItem value="">All Priorities</MenuItem>
-                    {filterOptions.priorities.map((priority) => (
+                    {(filterOptions.priorities || []).map((priority) => (
                       <MenuItem key={priority} value={priority}>{priority}</MenuItem>
                     ))}
                   </Select>
@@ -267,7 +291,7 @@ function BM25Search() {
                     label="Risk"
                   >
                     <MenuItem value="">All Risk Levels</MenuItem>
-                    {filterOptions.risks.map((risk) => (
+                    {(filterOptions.risks || []).map((risk) => (
                       <MenuItem key={risk} value={risk}>{risk}</MenuItem>
                     ))}
                   </Select>
@@ -283,7 +307,7 @@ function BM25Search() {
                     label="Type"
                   >
                     <MenuItem value="">All Types</MenuItem>
-                    {filterOptions.types.map((type) => (
+                    {(filterOptions.types || []).map((type) => (
                       <MenuItem key={type} value={type}>{type}</MenuItem>
                     ))}
                   </Select>
@@ -341,7 +365,7 @@ function BM25Search() {
                         {result.id || 'No ID'}
                       </Typography>
                       <Chip 
-                        label={formatScore(result.score)} 
+                        label={`Score: ${formatScore(result.score)}`}
                         color={getScoreColor(result.score)} 
                         size="small"
                       />
