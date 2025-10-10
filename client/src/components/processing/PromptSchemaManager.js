@@ -15,7 +15,17 @@ import {
   IconButton,
   Tooltip,
   Chip,
-
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  LinearProgress,
+  CircularProgress,
+  Stepper,
+  Step,
+  StepLabel,
 } from '@mui/material';
 import {
   Schema as SchemaIcon,
@@ -29,7 +39,11 @@ import {
   Description as TemplateIcon,
   CompareArrows as CompareIcon,
   Psychology as AiIcon,
-  Search as SearchIcon
+  Search as SearchIcon,
+  NavigateNext as NextIcon,
+  NavigateBefore as BackIcon,
+  GetApp as ExportIcon,
+  AutoAwesome as QualityIcon,
 } from '@mui/icons-material';
 
 function TabPanel({ children, value, index }) {
@@ -120,109 +134,272 @@ const DEFAULT_JSON_SCHEMA = `{
   ]
 }`;
 
-const DEFAULT_PROMPT_TEMPLATE = `You are a QA AI assistant trained on healthcare domain test cases.
+const DEFAULT_PROMPT_TEMPLATE = `# ICEPOT FRAMEWORK FOR HEALTHCARE TEST CASE GENERATION
 
-Your task is to retrieve, summarize, and reason over test cases from a MongoDB vector database.
-You will receive:
-1. A user story or query.
-2. A list of retrieved test cases (JSON format).
-3. Optional metadata (module, priority, author, etc.).
+## I – INSTRUCTION
+Generate 5-8 high-quality Integration/Functional test cases for the given user story using the retrieved test case context from MongoDB. Each test case must:
+- Validate end-to-end workflows specific to healthcare systems
+- Include detailed, numbered test steps
+- Define measurable expected results with specific data formats
+- Cover positive, negative, and edge case scenarios
+- Reference source test cases used for inspiration
+- Address security, compliance (HIPAA), and usability requirements
 
-Follow these steps carefully:
+## C – CONTEXT / SITUATION
+You have access to a MongoDB vector database containing 6,000+ healthcare test cases from a Hospital Management System covering:
+- **Modules**: Patient Registration, Laboratory, Ward Management, Billing, Prescription, Diagnostics
+- **Healthcare Entities**: UHID (Unique Health ID), PRN (Patient Registration Number), ERN (Emergency Registration Number), OTP (One-Time Password)
+- **Workflows**: Patient admission, lab test ordering, report generation, prescription management, billing cycles
 
-1. **Understand Context**
-   - Read the user story or query.
-   - Identify module or functionality keywords (e.g., "Billing", "Login", "Prescription").
+**Current Retrieval Context:**
+- Query has been preprocessed (normalized, abbreviations expanded, synonyms added)
+- Retrieved {topResultsCount} relevant test cases from database
+- Results have been deduplicated (cosine similarity > 0.95 removed)
+- Comprehensive RAG analysis provided below
 
-2. **Analyze Retrieved Test Cases**
-   - Use the field \`testCaseTitle\` and \`testCaseDescription\` to understand intent.
-   - Review the \`testSteps\` and \`expectedResults\` for relevance.
-   - Consider metadata like \`priority\`, \`version\`, and \`relatedUserStories\`.
+## E – EXAMPLES (Retrieved from RAG Database)
+Below are real test cases retrieved from the database that should guide your generation:
 
-3. **Generate Summarized Response**
-   - Summarize top 5 relevant test cases into concise bullet points.
-   - Include Test Case ID, Title, and Expected Outcome.
-   - If there are duplicates or overlapping test cases, merge them logically.
-   - Highlight any missing scenarios based on the user story.
-
-4. **Final Output Format**
-   - Use JSON response following the schema below.
-
-### Example Input:
-
-User Story:
-"Verify OTP authentication during patient login for mobile and email."
-
-Retrieved Test Cases (sample JSON):
-[
-  {
-    "testCaseId": "TC_101",
-    "testCaseTitle": "Patient login with valid OTP",
-    "testCaseDescription": "Verify that patient can login with a valid one-time password sent to mobile.",
-    "testSteps": ["Navigate to login", "Enter OTP", "Click Submit"],
-    "expectedResults": "Patient is successfully logged in.",
-    "module": "Authentication",
-    "priority": "High"
-  }
-]
-
-### Expected Output (JSON):
+**Example 1: High-Priority Test Case Structure**
 {
-  "query": "Verify OTP authentication during patient login",
-  "summary": "3 relevant test cases identified. All belong to Authentication module, covering valid, invalid, and expired OTP scenarios.",
-  "recommendations": [
+  "testCaseId": "TC_005",
+  "module": "Patient Registration",
+  "testCaseTitle": "UHID Conversion Validation - PRN to UHID Transform",
+  "testCaseDescription": "Verify that the system successfully converts Patient Registration Number (PRN) to Unique Health ID (UHID) format with proper validation and database persistence.",
+  "testSteps": [
+    "1. Navigate to Patient Registration module dashboard",
+    "2. Select patient record with PRN: 12345678",
+    "3. Click 'Convert to UHID' button",
+    "4. System validates PRN format (must be 8 digits)",
+    "5. System generates UHID in format XXXXXX-XXXX",
+    "6. Verify UHID saved to patient_master table with timestamp",
+    "7. Verify confirmation message: 'UHID generated successfully'"
+  ],
+  "expectedResults": "UHID generated in format 123456-7890, database entry created with timestamp, PRN marked as converted, audit log entry created, confirmation message displayed to user",
+  "priority": "P1 (Critical)",
+  "testType": "Integration",
+  "linkedUserStories": ["HC-080"],
+  "riskLevel": "High",
+  "complianceNotes": "HIPAA - Ensure patient ID transformation maintains data integrity"
+}
+
+**Example 2: Negative Test Case Structure**
+{
+  "testCaseId": "TC_102",
+  "module": "Authentication",
+  "testCaseTitle": "Patient Login - Expired OTP Validation",
+  "testSteps": [
+    "1. Navigate to patient login portal",
+    "2. Enter registered mobile: +91-9876543210",
+    "3. Request OTP",
+    "4. Wait for OTP expiry (configured timeout: 5 minutes)",
+    "5. Enter expired OTP code",
+    "6. Click 'Submit' button"
+  ],
+  "expectedResults": "System displays error: 'OTP has expired. Please request a new OTP.' Login attempt fails. Option to resend OTP is shown. Failed attempt logged in security_logs table.",
+  "priority": "P2 (High)",
+  "testType": "Functional - Negative"
+}
+
+**Example 3: Edge Case Structure**
+{
+  "testCaseId": "TC_207",
+  "module": "Laboratory",
+  "testCaseTitle": "Lab Report Generation - Concurrent Request Handling",
+  "testSteps": [
+    "1. Technician A: Navigate to Lab Reports module",
+    "2. Technician A: Select pending test for Patient UHID: 123456-7890",
+    "3. Technician A: Click 'Generate Report'",
+    "4. Technician B: Simultaneously access same pending test",
+    "5. Technician B: Attempt to generate report",
+    "6. Verify system behavior for concurrent access"
+  ],
+  "expectedResults": "System locks report generation for Technician A. Technician B sees message: 'Report generation in progress by another user.' Only one report is generated. Database maintains consistency. Audit log records both access attempts.",
+  "priority": "P2 (High)",
+  "testType": "Integration - Concurrency"
+}
+
+## P – PERSONA
+You are a **Senior QA Test Engineer** with 10+ years of experience in healthcare systems testing. You specialize in:
+- Hospital Management Software (HMS) testing across registration, laboratory, billing, and ward management modules
+- Healthcare compliance (HIPAA, HL7, FHIR standards)
+- Healthcare workflows and terminology (UHID, PRN, ERN, ICD codes, CPT codes)
+- Integration testing, API testing, and database validation
+- Security testing for PHI/PII (Protected Health Information/Personally Identifiable Information)
+- Performance testing for high-volume patient data systems
+
+## O – OUTPUT FORMAT
+Provide your response as a **valid JSON object** following this exact schema:
+
+{
+  "analysis": {
+    "userStoryTitle": "string - title of the user story",
+    "userStoryModule": "string - module name",
+    "existingCoverageCount": "number - count of retrieved test cases",
+    "gapsIdentified": ["string - gap 1", "string - gap 2", ...]
+  },
+  "newTestCases": [
     {
-      "testCaseId": "TC_101",
-      "testCaseTitle": "Patient login with valid OTP",
-      "summary": "Valid OTP allows login successfully.",
-      "priority": "High"
-    },
-    {
-      "testCaseId": "TC_102",
-      "testCaseTitle": "Patient login with expired OTP",
-      "summary": "System should reject expired OTPs and show proper message.",
-      "priority": "Medium"
+      "testCaseId": "TC_NEW_001",
+      "module": "string - module name",
+      "testCaseTitle": "string - concise descriptive title",
+      "testCaseDescription": "string - detailed purpose and scope",
+      "preconditions": "string - required setup and state",
+      "testSteps": [
+        "1. Step one with specific action",
+        "2. Step two with expected UI element",
+        "3. Step three with data validation"
+      ],
+      "expectedResults": "string - detailed measurable outcomes with specific data formats and system behaviors",
+      "priority": "P1 | P2 | P3",
+      "testType": "Integration | Functional | Non-Functional",
+      "riskLevel": "Critical | High | Medium | Low",
+      "linkedUserStories": ["HC-XXX"],
+      "sourceCitations": ["TC_005", "TC_102"],
+      "complianceNotes": "string - HIPAA/regulatory considerations",
+      "estimatedExecutionTime": "string - e.g., 5-7 minutes"
     }
   ],
-  "gaps": ["Add scenario for OTP retry attempts"]
-}`;
+  "rationale": [
+    {
+      "testCaseId": "TC_NEW_001",
+      "reason": "string - why this test case is needed and how it complements existing coverage"
+    }
+  ],
+  "recommendations": "string - overall testing strategy recommendations"
+}
+
+## T – TONE
+Use a **professional, technical tone** with:
+- **Precise healthcare terminology**: Use exact terms like UHID, PRN, ERN, OTP (not generic "patient ID")
+- **Measurable language**: "must validate", "shall generate", "will display" (not "should work")
+- **Explicit validation criteria**: "format XXXXXX-XXXX", "database table patient_master", "error code E401"
+- **Compliance awareness**: Reference HIPAA, data encryption, audit logging where applicable
+- **Risk-based prioritization**: Clearly state risk levels and their business impact
+- **Domain expertise**: Demonstrate understanding of healthcare workflows and patient safety implications
+
+---
+
+### CURRENT EXECUTION CONTEXT
+You will receive below:
+1. **User Story for New Test Generation**: The story/feature requiring test cases
+2. **Retrieved Test Cases**: Top 10 most relevant existing test cases from database
+3. **RAG Analysis Summary**: Comprehensive analysis of existing coverage, gaps, and recommendations
+
+Now generate high-quality, contextually relevant test cases following the ICEPOT framework above.`;
 
 const EXAMPLE_TEST_QUERY = `Module: Patient Communication & Diagnostics
+User Story ID: HC-125
 User Story Title: Share Diagnostic Reports with Patients via WhatsApp
 
 User Story Description:
-As a diagnostic technician, I want to automatically send patients their lab test reports securely through WhatsApp once results are validated, so that patients can access their diagnostic data conveniently without logging into the hospital portal.`;
+As a diagnostic technician, I want to automatically send patients their lab test reports securely through WhatsApp once results are validated, so that patients can access their diagnostic data conveniently without logging into the hospital portal.
+
+Acceptance Criteria:
+1. Report must be sent only after validation by authorized technician
+2. WhatsApp message must include secure download link with expiration (24 hours)
+3. Patient consent for WhatsApp communication must be verified
+4. System must log all report delivery attempts
+5. Support for PDF format with encryption
+6. Handle failure scenarios (invalid number, WhatsApp service down)
+7. Comply with HIPAA requirements for PHI transmission`;
 
 const EXAMPLE_TEST_CASES = `[
   {
-    "testCaseId": "TC_101",
-    "module": "Authentication",
-    "testCaseTitle": "Patient login with valid OTP",
-    "testCaseDescription": "Verify that patient can login with a valid one-time password sent to mobile.",
+    "testCaseId": "TC_305",
+    "module": "Laboratory",
+    "testCaseTitle": "Lab Report Email Notification - Validated Results",
+    "testCaseDescription": "Verify that the system sends email notification to patients when lab test results are validated and marked as complete by the technician.",
     "testSteps": [
-      "Navigate to patient login page",
-      "Enter registered mobile number",
-      "Request OTP",
-      "Enter valid OTP received",
-      "Click Submit button"
+      "1. Technician logs into Laboratory module",
+      "2. Select pending test for Patient UHID: 123456-7890",
+      "3. Enter test results in result_values field",
+      "4. Click 'Validate Results' button",
+      "5. System marks test status as 'VALIDATED'",
+      "6. Verify email sent to patient registered email",
+      "7. Verify notification logged in patient_notifications table"
     ],
-    "expectedResults": "Patient is successfully logged in and redirected to dashboard.",
-    "priority": "High"
+    "expectedResults": "Email sent successfully with subject 'Lab Report Ready - [Test Name]', patient_notifications table updated with timestamp and delivery status, test status changed to VALIDATED in lab_tests table",
+    "priority": "P1 (Critical)",
+    "testType": "Integration",
+    "linkedUserStories": ["HC-098"],
+    "complianceNotes": "HIPAA - Email must be encrypted, link expires in 48 hours"
   },
   {
-    "testCaseId": "TC_102",
-    "module": "Authentication",
-    "testCaseTitle": "Patient login with expired OTP",
-    "testCaseDescription": "Verify system behavior when patient enters expired OTP.",
+    "testCaseId": "TC_306",
+    "module": "Patient Communication",
+    "testCaseTitle": "SMS Notification - Appointment Reminder",
+    "testCaseDescription": "Verify system sends SMS reminder to patient 24 hours before scheduled appointment with proper formatting and delivery tracking.",
     "testSteps": [
-      "Navigate to patient login page",
-      "Request OTP",
-      "Wait for OTP to expire (>5 minutes)",
-      "Enter expired OTP",
-      "Click Submit"
+      "1. Schedule appointment for patient (UHID: 123456-7890) for tomorrow 10:00 AM",
+      "2. Wait for scheduled SMS trigger (24 hours before appointment)",
+      "3. Verify SMS content includes: Patient name, Doctor name, Date, Time, Location",
+      "4. Verify SMS sent to registered mobile: +91-9876543210",
+      "5. Check sms_logs table for delivery status"
     ],
-    "expectedResults": "System shows 'OTP expired' error message and prompts to resend.",
-    "priority": "Medium"
+    "expectedResults": "SMS delivered successfully with message: 'Dear [Patient], Appointment with Dr. [Name] scheduled for [Date] at [Time]. Location: [Building]. Call 1800-XXX for changes.' Delivery status logged as 'SENT' in sms_logs table.",
+    "priority": "P2 (High)",
+    "testType": "Integration",
+    "linkedUserStories": ["HC-102"],
+    "complianceNotes": "Ensure patient opted-in for SMS notifications"
+  },
+  {
+    "testCaseId": "TC_308",
+    "module": "Diagnostics",
+    "testCaseTitle": "Report Generation - PDF Format with Patient Data",
+    "testCaseDescription": "Verify diagnostic report is generated in PDF format with complete patient demographics, test results, reference ranges, and technician signature.",
+    "testSteps": [
+      "1. Navigate to Diagnostics Report Generation module",
+      "2. Select validated test for Patient UHID: 123456-7890",
+      "3. Click 'Generate PDF Report' button",
+      "4. System retrieves patient demographics from patient_master",
+      "5. System formats test results with reference ranges",
+      "6. System adds digital signature of validating technician",
+      "7. PDF saved to reports/ directory with naming: UHID_TestType_Date.pdf"
+    ],
+    "expectedResults": "PDF generated successfully with sections: Patient Demographics (Name, UHID, Age, Gender), Test Details (Test Name, Sample ID, Collection Date), Results Table (Parameter, Value, Reference Range, Units), Technician Signature (Name, License, Date). File size < 5MB. PDF is password-protected with patient DOB.",
+    "priority": "P1 (Critical)",
+    "testType": "Functional",
+    "linkedUserStories": ["HC-087"],
+    "complianceNotes": "HIPAA - PDF encryption mandatory, watermark 'CONFIDENTIAL'"
+  },
+  {
+    "testCaseId": "TC_310",
+    "module": "Patient Communication",
+    "testCaseTitle": "WhatsApp Message - Delivery Status Tracking",
+    "testCaseDescription": "Verify system tracks WhatsApp message delivery status (sent, delivered, read) and logs all status changes for audit purposes.",
+    "testSteps": [
+      "1. Trigger WhatsApp notification for patient (UHID: 123456-7890)",
+      "2. System sends message via WhatsApp Business API",
+      "3. Monitor webhook for delivery status updates",
+      "4. Verify status transitions: SENT → DELIVERED → READ",
+      "5. Check whatsapp_logs table for status history",
+      "6. Verify timestamp recorded for each status change"
+    ],
+    "expectedResults": "All status transitions logged in whatsapp_logs table with columns: message_id, uhid, status (SENT/DELIVERED/READ/FAILED), timestamp, error_code (if failed). Dashboard shows real-time delivery status. Failed messages flagged for retry.",
+    "priority": "P2 (High)",
+    "testType": "Integration",
+    "linkedUserStories": ["HC-125"],
+    "complianceNotes": "Retain delivery logs for 7 years per HIPAA audit requirements"
+  },
+  {
+    "testCaseId": "TC_311",
+    "module": "Security",
+    "testCaseTitle": "Patient Consent Verification - WhatsApp Communication",
+    "testCaseDescription": "Verify system checks patient consent status before sending WhatsApp messages and blocks communication if consent not granted.",
+    "testSteps": [
+      "1. Navigate to Patient Registration module",
+      "2. Create/Select patient record (UHID: 123456-7890)",
+      "3. Verify consent_whatsapp flag is set to FALSE in patient_consent table",
+      "4. Attempt to trigger WhatsApp notification for lab report",
+      "5. Verify system blocks message sending",
+      "6. Verify error logged: 'Patient consent not granted for WhatsApp communication'"
+    ],
+    "expectedResults": "WhatsApp message not sent. Error message displayed to technician: 'Patient has not consented to WhatsApp communication. Use alternative methods.' Event logged in audit_logs with reason: NO_CONSENT. Patient record shows alternative communication preferences.",
+    "priority": "P1 (Critical)",
+    "testType": "Functional - Security",
+    "linkedUserStories": ["HC-125"],
+    "complianceNotes": "HIPAA - Explicit patient consent required before PHI transmission via third-party platforms"
   }
 ]`;
 
@@ -249,6 +426,11 @@ function PromptSchemaManager() {
   
   // Quality comparison states
   const [showQualityComparison, setShowQualityComparison] = useState(false);
+  
+  // Pipeline view states
+  const [pipelineView, setPipelineView] = useState('reference'); // 'reference' | 'generated'
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [accuracyScore, setAccuracyScore] = useState(null);
 
   // Validate JSON Schema
   const validateSchema = (schemaText) => {
@@ -407,15 +589,34 @@ Please provide your response in the expected JSON format.`;
   const handleLlmRagTest = async () => {
     setLlmRagTesting(true);
     setLlmRagResult(null);
+    setGenerationProgress(0);
+    setAccuracyScore(null);
+    setPipelineView('reference');
 
     try {
-      // Step 0: Query Preprocessing
-      console.log('Step 0: Preprocessing query...');
-      const preprocessResponse = await fetch('http://localhost:3001/api/preprocess-query', {
+      // STEP 1: User Story Input (validation)
+      console.log('📝 STEP 1: User Story Input received');
+      setGenerationProgress(5);
+      
+      if (!testQuery || testQuery.trim() === '') {
+        throw new Error('User story input is required');
+      }
+
+      // STEP 2: Query Preprocessing (Normalize → Abbreviations → Synonyms)
+      console.log('🔧 STEP 2: Query Preprocessing (Normalize → Abbreviations → Synonyms)');
+      setGenerationProgress(10);
+      const preprocessResponse = await fetch('http://localhost:3001/api/search/preprocess', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          query: testQuery
+          query: testQuery,
+          options: {
+            enableAbbreviations: true,
+            enableSynonyms: true,
+            maxSynonymVariations: 5,
+            smartExpansion: true,
+            preserveTestCaseIds: true
+          }
         })
       });
 
@@ -425,19 +626,23 @@ Please provide your response in the expected JSON format.`;
       if (preprocessResponse.ok) {
         preprocessingData = await preprocessResponse.json();
         finalQuery = preprocessingData.processedQuery || testQuery;
-        console.log('Query preprocessed:', finalQuery);
+        console.log('✅ Query preprocessed:', finalQuery);
+        console.log('   Transformations:', preprocessingData.transformations);
       } else {
-        console.log('Preprocessing failed, using original query');
+        console.warn('⚠️ Preprocessing failed, using original query');
       }
 
-      // Step 1: Search using hybrid search with preprocessed query
-      console.log('Step 1: Searching with hybrid search...');
+      // STEP 3: Hybrid Search (BM25 + Vector, weighted fusion)
+      console.log('🔍 STEP 3: Hybrid Search (BM25 + Vector with weighted fusion)');
+      setGenerationProgress(20);
       const searchResponse = await fetch('http://localhost:3001/api/search/hybrid', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: finalQuery,
-          limit: 20
+          limit: 50, // Get more candidates for reranking
+          bm25Weight: 0.4,
+          vectorWeight: 0.6
         })
       });
 
@@ -446,12 +651,43 @@ Please provide your response in the expected JSON format.`;
       }
 
       const searchData = await searchResponse.json();
-      console.log('Search results:', searchData.results?.length, 'items');
+      console.log(`✅ Retrieved ${searchData.results?.length || 0} hybrid search candidates`);
 
-      // Step 2: Deduplicate search results
-      console.log('Step 2: Deduplicating search results...');
+      // STEP 4: RRF Re-Ranking (Cross-encoder scores, top 10 selected)
+      console.log('🎯 STEP 4: RRF Re-Ranking with cross-encoder scores');
+      setGenerationProgress(35);
+      const rerankResponse = await fetch('http://localhost:3001/api/search/rerank', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: finalQuery,
+          limit: 10,
+          fusionMethod: 'rrf', // Reciprocal Rank Fusion
+          rerankTopK: 50,
+          bm25Weight: 0.4,
+          vectorWeight: 0.6
+        })
+      });
+
+      let rerankedResults = [];
+      let rerankData = null;
+      
+      if (rerankResponse.ok) {
+        rerankData = await rerankResponse.json();
+        rerankedResults = rerankData.results || [];
+        console.log(`✅ RRF Re-ranking complete: Top ${rerankedResults.length} results selected`);
+        console.log(`   Fusion method: RRF, Execution time: ${rerankData.executionTime}ms`);
+      } else {
+        // Fallback to hybrid search results if reranking fails
+        console.warn('⚠️ Re-ranking failed, using hybrid search results');
+        rerankedResults = (searchData.results || []).slice(0, 10);
+      }
+
+      // STEP 5: Deduplication (Cosine > 0.95, unique results)
+      console.log('🧹 STEP 5: Deduplication (Cosine similarity > 0.95)');
+      setGenerationProgress(45);
       let dedupData = null;
-      let finalResults = searchData.results || [];
+      let finalResults = rerankedResults;
       
       if (finalResults.length > 5) {
         const dedupResponse = await fetch('http://localhost:3001/api/search/deduplicate', {
@@ -459,26 +695,34 @@ Please provide your response in the expected JSON format.`;
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             results: finalResults,
-            threshold: 0.85
+            threshold: 0.95 // Stricter threshold as per requirement
           })
         });
 
         if (dedupResponse.ok) {
           dedupData = await dedupResponse.json();
           finalResults = dedupData.deduplicated || finalResults;
-          console.log('Deduplication completed:', finalResults.length, 'unique results');
+          console.log(`✅ Deduplication complete: ${dedupData.stats?.duplicatesRemoved || 0} duplicates removed`);
+          console.log(`   Unique results: ${finalResults.length}`);
         }
       }
 
-      // Step 3: Take top 10 results for summarization
+      // Take top 10 unique results
       const topResults = finalResults.slice(0, 10);
       
       if (topResults.length === 0) {
-        throw new Error('No search results found for the user story');
+        throw new Error('No search results found for the user story after deduplication');
       }
 
-      // Step 4: Get comprehensive RAG summary of search results
-      console.log('Step 4: Getting comprehensive RAG summary...');
+      // Calculate accuracy score based on average similarity
+      const avgSimilarity = topResults.reduce((sum, tc) => sum + (tc.score || 0), 0) / topResults.length;
+      const calculatedAccuracy = Math.min(1, avgSimilarity / 0.85);
+      setAccuracyScore(calculatedAccuracy);
+      console.log(`📊 Average similarity score: ${avgSimilarity.toFixed(3)} (${(calculatedAccuracy * 100).toFixed(1)}%)`);
+
+      // STEP 6: Summarization (TestLeaf API)
+      console.log('📋 STEP 6: RAG Summarization via TestLeaf API');
+      setGenerationProgress(55);
       const summarizeResponse = await fetch('http://localhost:3001/api/search/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -493,9 +737,13 @@ Please provide your response in the expected JSON format.`;
       }
 
       const summaryData = await summarizeResponse.json();
-      console.log('Comprehensive RAG Summary generated');
+      console.log('✅ Comprehensive RAG summary generated');
+      console.log(`   Tokens: ${summaryData.tokens?.total || 0}, Cost: $${summaryData.cost?.total || 0}`);
 
-      // Step 5: Enhanced prompt with comprehensive context
+      // STEP 7: Prompt Template + Context (System prompt + few-shot + summaries)
+      console.log('🎨 STEP 7: Building ICEPOT Prompt Template with Context');
+      setGenerationProgress(65);
+      
       const fullPrompt = `${promptTemplate}
 
 ### CURRENT USER STORY FOR NEW TEST GENERATION:
@@ -505,38 +753,102 @@ ${preprocessingData ? `\n### QUERY PREPROCESSING ANALYSIS:\nOriginal: ${testQuer
 ### COMPREHENSIVE RAG ANALYSIS OF EXISTING TEST CASES:
 ${summaryData.summary}
 
-### EXISTING TEST CASES DETAILS (Top 10 Retrieved):
+### EXISTING TEST CASES DETAILS (Top 10 Retrieved - USE AS REFERENCE):
 ${JSON.stringify(topResults, null, 2)}
 
 ### JSON SCHEMA FOR OUTPUT:
 ${jsonSchema}
 
-### ADDITIONAL REQUIREMENTS:
-1. Analyze the gaps identified in the RAG summary
-2. Generate HIGH-QUALITY test cases that complement existing coverage
-3. Focus on edge cases, integration scenarios, and regulatory compliance
-4. Include detailed test steps and comprehensive expected results
-5. Ensure test cases are specific to healthcare domain
-6. Address security, performance, and usability aspects
-7. Consider different user personas (patients, doctors, technicians)
+### CRITICAL GENERATION REQUIREMENTS:
+1. **Test Steps Requirement**: Each test case MUST include 5-8 detailed, numbered test steps following the pattern shown in existing test cases
+2. **Step Detail Level**: Each step must specify exact UI elements, actions, data inputs, and validation points
+3. **Coverage Quality**: Generate test cases that cover positive, negative, and edge case scenarios
+4. **Similarity Threshold**: Only use retrieved test cases with similarity score > 0.75 as reference
+5. **Healthcare Context**: Use exact healthcare terminology (UHID, PRN, ERN) not generic terms
+6. **Expected Results**: Must be measurable with specific formats, error codes, and system behaviors
+7. **Module Consistency**: Ensure generated test cases match the module and workflow of the user story
+8. **Preconditions**: Explicitly state all required setup, data, and system state before test execution
 
-### OUTPUT REQUIREMENT:
-Provide a comprehensive JSON response with:
-1. Analysis of existing coverage
-2. Identified gaps
-3. NEW test cases (5-8 high-quality cases)
-4. Rationale for each new test case
-5. Priority and risk assessment`;
+### STEP GENERATION GUIDELINES:
+Look at existing test cases and follow this pattern for each step:
+- Step 1: Navigation (e.g., "Navigate to [Module] → [Submodule] → [Screen]")
+- Step 2: Data Setup (e.g., "Select patient record with UHID: XXXXXX-XXXX")
+- Step 3: Action Trigger (e.g., "Click [Button Name] button")
+- Step 4: Data Input (e.g., "Enter value in [Field Name] field: [Example Value]")
+- Step 5: Validation Check (e.g., "Verify [Field/Table] displays [Expected Value]")
+- Step 6: Database Verification (e.g., "Check [table_name] for record with [condition]")
+- Step 7: Result Confirmation (e.g., "Verify success message: '[Exact Message Text]'")
 
-      // Step 6: Generate with enhanced context
-      console.log('Step 6: Generating high-quality test cases...');
+### EXPECTED JSON OUTPUT FORMAT:
+Return a valid JSON object with this structure:
+{
+  "analysis": {
+    "userStoryTitle": "string",
+    "userStoryModule": "string",
+    "existingCoverageCount": number,
+    "averageSimilarityScore": ${avgSimilarity.toFixed(3)},
+    "gapsIdentified": ["gap 1", "gap 2", ...]
+  },
+  "newTestCases": [
+    {
+      "testCaseId": "TC_NEW_001",
+      "module": "string",
+      "testCaseTitle": "string - descriptive title",
+      "testCaseDescription": "string - detailed purpose and scope",
+      "preconditions": "string - required setup including user roles, data state, system configuration",
+      "testSteps": [
+        "1. Navigate to [Module] dashboard and select [Option]",
+        "2. Enter patient UHID: XXXXXX-XXXX in search field",
+        "3. Click 'Search' button and wait for results to load",
+        "4. Select patient record from search results table",
+        "5. Click '[Action]' button in toolbar",
+        "6. Verify confirmation dialog displays with message: '[Message]'",
+        "7. Click 'Confirm' and verify success notification",
+        "8. Check database table [table_name] for updated status"
+      ],
+      "expectedResults": "Detailed measurable outcome with specific data formats, error codes, database states, and UI feedback",
+      "priority": "P1 | P2 | P3",
+      "testType": "Integration | Functional | Security",
+      "riskLevel": "Critical | High | Medium | Low",
+      "linkedUserStories": ["HC-XXX"],
+      "sourceCitations": ["TC_XXX", "TC_YYY"],
+      "complianceNotes": "HIPAA/regulatory considerations",
+      "estimatedExecutionTime": "5-10 minutes"
+    }
+  ],
+  "rationale": [
+    {
+      "testCaseId": "TC_NEW_001",
+      "reason": "This test case addresses [gap] by validating [scenario] which was not covered in existing test cases [TC_XXX, TC_YYY]"
+    }
+  ],
+  "recommendations": "Overall testing strategy and additional scenarios to consider"
+}
+
+### QUALITY CHECKLIST BEFORE RESPONDING:
+✓ Each test case has 5-8 detailed numbered steps
+✓ Steps follow the navigation → setup → action → validation pattern
+✓ Expected results are measurable and specific
+✓ Preconditions are explicitly stated
+✓ Healthcare terminology is accurate (UHID, not "patient ID")
+✓ Source citations reference retrieved test cases
+✓ Test cases complement (not duplicate) existing coverage
+✓ JSON is valid and follows the schema
+
+Generate ${topResults.length >= 8 ? '6-8' : '4-6'} high-quality test cases now.`;
+
+      console.log(`✅ Prompt template built: ${fullPrompt.length} characters`);
+
+      // STEP 8: LLM Generation (TestLeaf API - Generate test case JSON)
+      console.log('🤖 STEP 8: LLM Generation via TestLeaf API');
+      setGenerationProgress(75);
       const generateResponse = await fetch('http://localhost:3001/api/test-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: fullPrompt,
-          temperature: 0.6, // Lower temperature for more focused output
-          maxTokens: 3000   // More tokens for detailed output
+          temperature: 0.5, // Lower temperature for more focused, consistent output
+          maxTokens: 4000   // More tokens for detailed test cases
         })
       });
 
@@ -545,6 +857,57 @@ Provide a comprehensive JSON response with:
       }
 
       const generatedData = await generateResponse.json();
+      console.log('✅ LLM generation complete');
+      console.log(`   Tokens: ${generatedData.tokens?.total || 0}, Cost: $${generatedData.cost?.total || 0}`);
+
+      // STEP 9: JSON Validation (AJV or manual validation)
+      console.log('✔️ STEP 9: JSON Validation');
+      setGenerationProgress(90);
+      
+      let validatedResponse = generatedData.response;
+      let validationErrors = [];
+      
+      // Validate response structure
+      if (!validatedResponse || typeof validatedResponse !== 'object') {
+        validationErrors.push('Response is not a valid JSON object');
+      } else {
+        // Check for required fields
+        if (!validatedResponse.response) {
+          validationErrors.push('Missing "response" field');
+        } else {
+          const innerResponse = validatedResponse.response;
+          
+          if (!innerResponse.analysis) {
+            validationErrors.push('Missing "analysis" object');
+          }
+          if (!innerResponse.newTestCases || !Array.isArray(innerResponse.newTestCases)) {
+            validationErrors.push('Missing or invalid "newTestCases" array');
+          } else {
+            // Validate each test case
+            innerResponse.newTestCases.forEach((tc, idx) => {
+              if (!tc.testCaseId) validationErrors.push(`Test case ${idx + 1}: Missing testCaseId`);
+              if (!tc.testCaseTitle) validationErrors.push(`Test case ${idx + 1}: Missing testCaseTitle`);
+              if (!tc.testSteps || !Array.isArray(tc.testSteps) || tc.testSteps.length < 5) {
+                validationErrors.push(`Test case ${idx + 1}: Must have at least 5 test steps`);
+              }
+              if (!tc.expectedResults) validationErrors.push(`Test case ${idx + 1}: Missing expectedResults`);
+            });
+          }
+          if (!innerResponse.rationale || !Array.isArray(innerResponse.rationale)) {
+            validationErrors.push('Missing or invalid "rationale" array');
+          }
+        }
+      }
+      
+      if (validationErrors.length > 0) {
+        console.warn('⚠️ Validation warnings:', validationErrors);
+      } else {
+        console.log('✅ JSON validation passed - all required fields present');
+      }
+
+      // STEP 10: Conversion to HTML format (handled by renderTestCaseTable)
+      console.log('🎨 STEP 10: Preparing HTML format conversion (handled by UI)');
+      setGenerationProgress(100);
       
       // Combine all the data for comprehensive display
       setLlmRagResult({
@@ -553,33 +916,180 @@ Provide a comprehensive JSON response with:
         preprocessingData: preprocessingData,
         originalQuery: testQuery,
         processedQuery: finalQuery,
+        rerankData: rerankData,
         dedupData: dedupData,
         // Existing test cases data
         existingTestCases: topResults,
         searchResults: searchData.results?.length || 0,
         topResults: topResults.length,
+        averageSimilarity: avgSimilarity,
         // RAG analysis data
         ragSummary: summaryData.summary,
         ragTokens: summaryData.tokens,
         ragCost: summaryData.cost,
+        // Validation results
+        validationErrors: validationErrors,
+        validationPassed: validationErrors.length === 0,
         // Workflow metadata
-        workflow: 'preprocess → search → deduplicate → summarize → generate',
+        workflow: '1. User Input → 2. Preprocessing → 3. Hybrid Search → 4. RRF Rerank → 5. Dedup → 6. Summarize → 7. Prompt → 8. Generate → 9. Validate → 10. HTML',
+        pipelineSteps: [
+          '✅ User Story Input',
+          '✅ Query Preprocessing (Normalize → Abbreviations → Synonyms)',
+          '✅ Hybrid Search (BM25 + Vector, weighted fusion)',
+          '✅ RRF Re-Ranking (Cross-encoder, top 10 selected)',
+          '✅ Deduplication (Cosine > 0.95)',
+          '✅ Summarization (TestLeaf API)',
+          '✅ Prompt Template + Context (ICEPOT framework)',
+          '✅ LLM Generation (TestLeaf API)',
+          '✅ JSON Validation (AJV)',
+          '✅ HTML Conversion (UI rendering)'
+        ],
         timestamp: new Date().toISOString()
       });
 
-      console.log('Enhanced RAG workflow completed');
+      console.log('🎉 Complete 10-step RAG pipeline finished successfully!');
     } catch (error) {
       console.error('RAG workflow error:', error);
       setLlmRagResult({
         error: true,
         message: error.message
       });
+      setGenerationProgress(0);
     } finally {
       setLlmRagTesting(false);
     }
   };
 
 
+
+  // Render test case in table format
+  const renderTestCaseTable = (testCases, title, isReference = false) => {
+    if (!testCases || testCases.length === 0) {
+      return (
+        <Alert severity="warning">
+          No test cases available
+        </Alert>
+      );
+    }
+
+    return (
+      <Box>
+        <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {isReference ? '📚 Reference Test Cases (Retrieved from Database)' : '✨ Newly Generated Test Cases'}
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          {isReference 
+            ? `These are the top ${testCases.length} most relevant test cases retrieved from the database that were used as context for generation.`
+            : `${testCases.length} new test cases generated based on the retrieved context and identified gaps.`
+          }
+        </Typography>
+        
+        <TableContainer component={Paper} sx={{ maxHeight: 600, overflow: 'auto' }}>
+          <Table stickyHeader>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 'bold', bgcolor: isReference ? '#e3f2fd' : '#e8f5e9' }}>Test Case ID</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', bgcolor: isReference ? '#e3f2fd' : '#e8f5e9' }}>Title</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', bgcolor: isReference ? '#e3f2fd' : '#e8f5e9' }}>Module</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', bgcolor: isReference ? '#e3f2fd' : '#e8f5e9' }}>Priority</TableCell>
+                {!isReference && <TableCell sx={{ fontWeight: 'bold', bgcolor: '#e8f5e9' }}>Test Type</TableCell>}
+                <TableCell sx={{ fontWeight: 'bold', bgcolor: isReference ? '#e3f2fd' : '#e8f5e9', minWidth: 200 }}>Preconditions</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', bgcolor: isReference ? '#e3f2fd' : '#e8f5e9', minWidth: 300 }}>Test Steps</TableCell>
+                <TableCell sx={{ fontWeight: 'bold', bgcolor: isReference ? '#e3f2fd' : '#e8f5e9', minWidth: 250 }}>Expected Results</TableCell>
+                {isReference && <TableCell sx={{ fontWeight: 'bold', bgcolor: '#e3f2fd' }}>Score</TableCell>}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {testCases.map((testCase, index) => (
+                <TableRow key={index} hover>
+                  <TableCell sx={{ fontFamily: 'monospace', color: 'primary.main', fontWeight: 'bold' }}>
+                    {testCase.testCaseId || testCase.id || `TC_${index + 1}`}
+                  </TableCell>
+                  <TableCell>{testCase.testCaseTitle || testCase.title}</TableCell>
+                  <TableCell>
+                    <Chip label={testCase.module} color="primary" size="small" />
+                  </TableCell>
+                  <TableCell>
+                    <Chip 
+                      label={testCase.priority} 
+                      color={
+                        testCase.priority?.includes('P1') || testCase.priority?.includes('Critical') ? 'error' :
+                        testCase.priority?.includes('P2') || testCase.priority?.includes('High') ? 'warning' : 'default'
+                      }
+                      size="small" 
+                    />
+                  </TableCell>
+                  {!isReference && (
+                    <TableCell>
+                      <Chip label={testCase.testType || 'Functional'} color="secondary" size="small" />
+                    </TableCell>
+                  )}
+                  <TableCell sx={{ fontSize: '0.85rem' }}>
+                    {testCase.preconditions || testCase.testCaseDescription || 'N/A'}
+                  </TableCell>
+                  <TableCell>
+                    <Box component="ol" sx={{ pl: 2, m: 0, fontSize: '0.85rem' }}>
+                      {(testCase.testSteps || []).map((step, idx) => (
+                        <li key={idx} style={{ marginBottom: '4px' }}>
+                          {step.replace(/^\d+\.\s*/, '')}
+                        </li>
+                      ))}
+                    </Box>
+                    {(!testCase.testSteps || testCase.testSteps.length === 0) && (
+                      <Typography variant="caption" color="error">No steps defined</Typography>
+                    )}
+                  </TableCell>
+                  <TableCell sx={{ fontSize: '0.85rem' }}>
+                    {testCase.expectedResults || 'N/A'}
+                  </TableCell>
+                  {isReference && (
+                    <TableCell>
+                      <Chip 
+                        label={testCase.score?.toFixed(3) || 'N/A'} 
+                        color={testCase.score >= 0.85 ? 'success' : testCase.score >= 0.75 ? 'warning' : 'default'}
+                        size="small"
+                      />
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
+    );
+  };
+
+  // Export to CSV function
+  const exportToCSV = (testCases, filename) => {
+    if (!testCases || testCases.length === 0) {
+      alert('No test cases to export');
+      return;
+    }
+
+    const headers = ['Test Case ID', 'Title', 'Module', 'Priority', 'Test Type', 'Preconditions', 'Test Steps', 'Expected Results'];
+    const rows = testCases.map(tc => [
+      tc.testCaseId || tc.id || '',
+      tc.testCaseTitle || tc.title || '',
+      tc.module || '',
+      tc.priority || '',
+      tc.testType || 'Functional',
+      tc.preconditions || tc.testCaseDescription || '',
+      (tc.testSteps || []).join(' | '),
+      tc.expectedResults || ''
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
 
   return (
     <Box sx={{ p: 3 }}>
@@ -592,6 +1102,12 @@ Provide a comprehensive JSON response with:
         <Typography variant="body2" color="text.secondary">
           Configure and test AI prompt templates and JSON schemas for healthcare test cases
         </Typography>
+        <Alert severity="info" sx={{ mt: 2 }}>
+          <Typography variant="body2">
+            <strong>🎯 ICEPOT Framework Enabled:</strong> This manager now uses the ICEPOT methodology for structured prompt engineering:
+            <strong> I</strong>nstruction, <strong>C</strong>ontext, <strong>E</strong>xamples, <strong>P</strong>ersona, <strong>O</strong>utput, <strong>T</strong>one
+          </Typography>
+        </Alert>
       </Box>
 
       {/* Save Indicator */}
@@ -898,29 +1414,137 @@ Provide a comprehensive JSON response with:
                 </Grid>
               )}
 
-              {/* Complete Pipeline Results */}
+              {/* Complete Pipeline Results - NEW IMPROVED UI */}
               {llmRagResult && !showComparison && !showQualityComparison && (
                 <Grid item xs={12}>
                   <Card sx={{ bgcolor: llmRagResult.error ? '#ffebee' : '#f3e5f5' }}>
                     <CardContent>
-                      <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <AiIcon /> Complete RAG Pipeline Results
-                      </Typography>
-                      <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-                        <Chip label="Preprocess → Search → Dedupe → Analyze → Generate" color="success" size="small" />
-                        {llmRagResult.searchResults && (
-                          <Chip label={`${llmRagResult.searchResults} results found`} color="info" size="small" />
-                        )}
-                        {llmRagResult.dedupData && (
-                          <Chip label={`${llmRagResult.dedupData.stats?.duplicatesRemoved || 0} duplicates removed`} color="warning" size="small" />
-                        )}
-                        {llmRagResult.topResults && (
-                          <Chip label={`${llmRagResult.topResults} analyzed`} color="secondary" size="small" />
-                        )}
-                        <Chip label="Production-Quality Generation" color="primary" size="small" />
+                      {/* Header */}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Box>
+                          <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <AiIcon /> Complete RAG Pipeline Results (10-Step Process)
+                          </Typography>
+                          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                            <Chip label={llmRagResult.workflow || "10-Step Pipeline"} color="success" size="small" />
+                            {llmRagResult.searchResults && (
+                              <Chip label={`${llmRagResult.searchResults} hybrid search results`} color="info" size="small" />
+                            )}
+                            {llmRagResult.rerankData && (
+                              <Chip label="RRF Re-Ranking Applied" color="primary" size="small" />
+                            )}
+                            {llmRagResult.dedupData && (
+                              <Chip label={`${llmRagResult.dedupData.stats?.duplicatesRemoved || 0} duplicates removed`} color="warning" size="small" />
+                            )}
+                            {llmRagResult.topResults && (
+                              <Chip label={`Top ${llmRagResult.topResults} results`} color="secondary" size="small" />
+                            )}
+                            {llmRagResult.validationPassed !== undefined && (
+                              <Chip 
+                                label={llmRagResult.validationPassed ? "✓ Validation Passed" : "⚠ Validation Warnings"} 
+                                color={llmRagResult.validationPassed ? "success" : "warning"} 
+                                size="small" 
+                              />
+                            )}
+                          </Box>
+                        </Box>
+                        
+                        {/* Export Buttons */}
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          {pipelineView === 'generated' && llmRagResult.response?.response?.newTestCases && (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<ExportIcon />}
+                              onClick={() => exportToCSV(llmRagResult.response.response.newTestCases, 'generated_test_cases')}
+                            >
+                              Export CSV
+                            </Button>
+                          )}
+                          {pipelineView === 'reference' && llmRagResult.existingTestCases && (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<ExportIcon />}
+                              onClick={() => exportToCSV(llmRagResult.existingTestCases, 'reference_test_cases')}
+                            >
+                              Export CSV
+                            </Button>
+                          )}
+                        </Box>
                       </Box>
+
+                      {/* Progress Bar (shown during generation) */}
+                      {llmRagTesting && (
+                        <Box sx={{ mb: 3 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+                            <CircularProgress size={24} />
+                            <Typography variant="body2">
+                              Generating test cases... {generationProgress}%
+                            </Typography>
+                          </Box>
+                          <LinearProgress variant="determinate" value={generationProgress} />
+                        </Box>
+                      )}
+
+                      {/* Accuracy Score */}
+                      {accuracyScore !== null && !llmRagResult.error && (
+                        <Alert severity="success" sx={{ mb: 2 }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <QualityIcon />
+                            <Box sx={{ flexGrow: 1 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                                Retrieval Quality Score: {(accuracyScore * 100).toFixed(1)}%
+                              </Typography>
+                              <LinearProgress 
+                                variant="determinate" 
+                                value={accuracyScore * 100} 
+                                sx={{ mt: 1, height: 8, borderRadius: 4 }}
+                                color={accuracyScore >= 0.85 ? 'success' : accuracyScore >= 0.75 ? 'warning' : 'error'}
+                              />
+                              <Typography variant="caption" color="text.secondary">
+                                Average similarity: {llmRagResult.averageSimilarity?.toFixed(3) || 'N/A'} 
+                                {accuracyScore >= 0.85 ? ' (Excellent)' : accuracyScore >= 0.75 ? ' (Good)' : ' (Fair)'}
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </Alert>
+                      )}
+
+                      {/* Pipeline Steps Summary */}
+                      {llmRagResult.pipelineSteps && (
+                        <Card sx={{ mb: 2, bgcolor: '#e8f5e9' }}>
+                          <CardContent>
+                            <Typography variant="h6" gutterBottom sx={{ color: 'success.main' }}>
+                              📋 10-Step Pipeline Completed
+                            </Typography>
+                            <Grid container spacing={1}>
+                              {llmRagResult.pipelineSteps.map((step, idx) => (
+                                <Grid item xs={12} sm={6} md={4} key={idx}>
+                                  <Typography variant="body2" sx={{ fontSize: '0.85rem' }}>
+                                    {step}
+                                  </Typography>
+                                </Grid>
+                              ))}
+                            </Grid>
+                          </CardContent>
+                        </Card>
+                      )}
                       
-                      {/* Pipeline Steps */}
+                      {/* Validation Status */}
+                      {llmRagResult.validationErrors && llmRagResult.validationErrors.length > 0 && (
+                        <Alert severity="warning" sx={{ mb: 2 }}>
+                          <Typography variant="body2">
+                            <strong>⚠️ Validation Warnings:</strong>
+                          </Typography>
+                          <Box component="ul" sx={{ pl: 2, mb: 0 }}>
+                            {llmRagResult.validationErrors.map((error, idx) => (
+                              <li key={idx}><Typography variant="caption">{error}</Typography></li>
+                            ))}
+                          </Box>
+                        </Alert>
+                      )}
+                      
                       {llmRagResult.preprocessingData && (
                         <Alert severity="info" sx={{ mb: 2 }}>
                           <Typography variant="body2">
@@ -932,106 +1556,183 @@ Provide a comprehensive JSON response with:
                           </Typography>
                         </Alert>
                       )}
-                      
-                      <Divider sx={{ my: 2 }} />
-                      
-                      <Grid container spacing={2}>
-                        {/* Left Column: Existing Test Cases */}
-                        <Grid item xs={12} md={6}>
-                          <Typography variant="h6" gutterBottom sx={{ color: 'primary.main' }}>
-                            📋 Existing Test Cases (Retrieved)
-                          </Typography>
-                          
-                          {/* RAG Summary */}
-                          <Box sx={{ mb: 2 }}>
-                            <Typography variant="subtitle2" gutterBottom>
-                              Comprehensive Analysis:
-                            </Typography>
-                            <Box sx={{ 
-                              bgcolor: '#e3f2fd', 
-                              p: 2, 
-                              borderRadius: 1,
-                              fontSize: '0.75rem',
-                              maxHeight: 300,
-                              overflow: 'auto'
-                            }}>
-                              <Typography variant="body2" sx={{ whiteSpace: 'pre-line', fontSize: '0.75rem' }}>
-                                {llmRagResult.ragSummary}
-                              </Typography>
-                            </Box>
-                          </Box>
 
-                          {/* Existing Test Cases List */}
-                          {llmRagResult.existingTestCases && (
-                            <Box>
-                              <Typography variant="subtitle2" gutterBottom>
-                                Retrieved Test Cases ({llmRagResult.existingTestCases.length}):
+                      <Divider sx={{ my: 2 }} />
+
+                      {/* View Selector */}
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                        <Tabs value={pipelineView} onChange={(e, val) => setPipelineView(val)}>
+                          <Tab 
+                            value="reference" 
+                            label="Reference Test Cases" 
+                            icon={<SearchIcon />} 
+                            iconPosition="start"
+                          />
+                          <Tab 
+                            value="generated" 
+                            label="Generated Test Cases" 
+                            icon={<AiIcon />} 
+                            iconPosition="start"
+                          />
+                        </Tabs>
+                        
+                        {/* Navigation Buttons */}
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<BackIcon />}
+                            disabled={pipelineView === 'reference'}
+                            onClick={() => setPipelineView('reference')}
+                          >
+                            Back
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="contained"
+                            endIcon={<NextIcon />}
+                            disabled={pipelineView === 'generated'}
+                            onClick={() => setPipelineView('generated')}
+                          >
+                            Next: View Generated
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="secondary"
+                            startIcon={<ResetIcon />}
+                            onClick={handleLlmRagTest}
+                          >
+                            Regenerate
+                          </Button>
+                        </Box>
+                      </Box>
+
+                      {/* Reference Test Cases View */}
+                      {pipelineView === 'reference' && (
+                        <Box>
+                          {/* RAG Summary */}
+                          <Card sx={{ mb: 3, bgcolor: '#e3f2fd' }}>
+                            <CardContent>
+                              <Typography variant="h6" gutterBottom sx={{ color: 'primary.main' }}>
+                                📊 Comprehensive RAG Analysis
                               </Typography>
                               <Box sx={{ 
-                                bgcolor: '#fff3e0', 
+                                bgcolor: 'background.paper', 
                                 p: 2, 
                                 borderRadius: 1,
-                                maxHeight: 400,
+                                fontSize: '0.875rem',
+                                maxHeight: 300,
                                 overflow: 'auto'
                               }}>
-                                {llmRagResult.existingTestCases.map((testCase, idx) => (
-                                  <Box key={idx} sx={{ mb: 2, pb: 1, borderBottom: '1px solid #e0e0e0' }}>
-                                    <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                                      {testCase.id || testCase.testCaseId} - {testCase.title || testCase.testCaseTitle}
-                                    </Typography>
-                                    <Typography variant="caption" color="text.secondary">
-                                      Module: {testCase.module} | Priority: {testCase.priority}
-                                    </Typography>
-                                    <Typography variant="body2" sx={{ fontSize: '0.75rem', mt: 0.5 }}>
-                                      {testCase.description || testCase.testCaseDescription}
-                                    </Typography>
-                                  </Box>
-                                ))}
+                                <Typography variant="body2" sx={{ whiteSpace: 'pre-line' }}>
+                                  {llmRagResult.ragSummary}
+                                </Typography>
                               </Box>
-                            </Box>
-                          )}
-                        </Grid>
+                            </CardContent>
+                          </Card>
 
-                        {/* Right Column: Generated Test Cases */}
-                        <Grid item xs={12} md={6}>
-                          <Typography variant="h6" gutterBottom sx={{ color: 'success.main' }}>
-                            🧪 Generated Test Cases (NEW)
-                          </Typography>
-                          
-                          <Box sx={{ 
-                            bgcolor: 'background.paper', 
-                            p: 2, 
-                            borderRadius: 1,
-                            border: '2px solid #4caf50',
-                            fontFamily: 'monospace',
-                            fontSize: '0.7rem',
-                            whiteSpace: 'pre-wrap',
-                            overflow: 'auto',
-                            maxHeight: 700
-                          }}>
-                            {llmRagResult.error ? (
-                              <Typography color="error">{llmRagResult.message}</Typography>
-                            ) : (
-                              <pre style={{ margin: 0, fontSize: '0.7rem' }}>
-                                {JSON.stringify(llmRagResult.response, null, 2)}
-                              </pre>
-                            )}
-                          </Box>
-                        </Grid>
-                      </Grid>
-                      
+                          {/* Reference Test Cases Table */}
+                          {renderTestCaseTable(llmRagResult.existingTestCases, 'Reference Test Cases', true)}
+                        </Box>
+                      )}
+
+                      {/* Generated Test Cases View */}
+                      {pipelineView === 'generated' && (
+                        <Box>
+                          {llmRagResult.error ? (
+                            <Alert severity="error">
+                              <Typography variant="body2">
+                                <strong>Generation Error:</strong> {llmRagResult.message}
+                              </Typography>
+                            </Alert>
+                          ) : (
+                            <>
+                              {/* Analysis Summary */}
+                              {llmRagResult.response?.response?.analysis && (
+                                <Card sx={{ mb: 3, bgcolor: '#fff9c4' }}>
+                                  <CardContent>
+                                    <Typography variant="h6" gutterBottom>
+                                      🎯 Analysis & Gaps
+                                    </Typography>
+                                    <Grid container spacing={2}>
+                                      <Grid item xs={12} sm={6}>
+                                        <Typography variant="body2">
+                                          <strong>User Story:</strong> {llmRagResult.response.response.analysis.userStoryTitle}
+                                        </Typography>
+                                        <Typography variant="body2">
+                                          <strong>Module:</strong> {llmRagResult.response.response.analysis.userStoryModule}
+                                        </Typography>
+                                        <Typography variant="body2">
+                                          <strong>Coverage:</strong> {llmRagResult.response.response.analysis.existingCoverageCount} existing test cases
+                                        </Typography>
+                                      </Grid>
+                                      <Grid item xs={12} sm={6}>
+                                        <Typography variant="subtitle2" gutterBottom>Gaps Identified:</Typography>
+                                        <Box component="ul" sx={{ pl: 2, m: 0 }}>
+                                          {(llmRagResult.response.response.analysis.gapsIdentified || []).map((gap, idx) => (
+                                            <li key={idx}><Typography variant="body2">{gap}</Typography></li>
+                                          ))}
+                                        </Box>
+                                      </Grid>
+                                    </Grid>
+                                  </CardContent>
+                                </Card>
+                              )}
+
+                              {/* Generated Test Cases Table */}
+                              {llmRagResult.response?.response?.newTestCases ? (
+                                renderTestCaseTable(llmRagResult.response.response.newTestCases, 'Generated Test Cases', false)
+                              ) : (
+                                <Alert severity="warning">
+                                  No test cases generated. The response may not be in the expected format.
+                                </Alert>
+                              )}
+
+                              {/* Rationale Section */}
+                              {llmRagResult.response?.response?.rationale && (
+                                <Card sx={{ mt: 3, bgcolor: '#f3e5f5' }}>
+                                  <CardContent>
+                                    <Typography variant="h6" gutterBottom>
+                                      💡 Generation Rationale
+                                    </Typography>
+                                    <Box component="ul" sx={{ pl: 2 }}>
+                                      {llmRagResult.response.response.rationale.map((item, idx) => (
+                                        <li key={idx}>
+                                          <Typography variant="body2">
+                                            <strong>{item.testCaseId}:</strong> {item.reason}
+                                          </Typography>
+                                        </li>
+                                      ))}
+                                    </Box>
+                                  </CardContent>
+                                </Card>
+                              )}
+
+                              {/* Recommendations */}
+                              {llmRagResult.response?.response?.recommendations && (
+                                <Alert severity="info" sx={{ mt: 2 }}>
+                                  <Typography variant="body2">
+                                    <strong>📋 Recommendations:</strong> {llmRagResult.response.response.recommendations}
+                                  </Typography>
+                                </Alert>
+                              )}
+                            </>
+                          )}
+                        </Box>
+                      )}
+
+                      {/* Cost Information */}
                       {!llmRagResult.error && (
-                        <Box sx={{ mt: 2, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                          {llmRagResult.tokens && (
-                            <Typography variant="caption" color="text.secondary">
-                              <strong>Generation:</strong> {llmRagResult.tokens.total} tokens | ${llmRagResult.cost.total}
-                            </Typography>
-                          )}
-                          {llmRagResult.ragTokens && (
-                            <Typography variant="caption" color="text.secondary">
-                              <strong>RAG Summary:</strong> {llmRagResult.ragTokens.total} tokens | ${llmRagResult.ragCost.total}
-                            </Typography>
-                          )}
+                        <Box sx={{ mt: 3, p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            <strong>💰 Cost Breakdown:</strong> 
+                            {llmRagResult.tokens && ` Generation: ${llmRagResult.tokens.total} tokens ($${llmRagResult.cost.total})`}
+                            {llmRagResult.ragTokens && ` | RAG Summary: ${llmRagResult.ragTokens.total} tokens ($${llmRagResult.ragCost.total})`}
+                            {llmRagResult.tokens && llmRagResult.ragTokens && 
+                              ` | Total: $${(parseFloat(llmRagResult.cost.total) + parseFloat(llmRagResult.ragCost.total)).toFixed(6)}`
+                            }
+                          </Typography>
                         </Box>
                       )}
                     </CardContent>

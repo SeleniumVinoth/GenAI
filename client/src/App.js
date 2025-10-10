@@ -48,7 +48,6 @@ import { SnackbarProvider } from 'notistack';
 // Import components
 import ConvertToJson from './components/data/ConvertToJson';
 import EmbeddingsStore from './components/data/EmbeddingsStore';
-import Settings from './components/settings/Settings';
 import QuerySearch from './components/search/QuerySearch';
 import BM25Search from './components/search/BM25Search';
 import HybridSearch from './components/search/HybridSearch';
@@ -56,6 +55,7 @@ import RerankingSearch from './components/search/RerankingSearch';
 import QueryPreprocessing from './components/processing/QueryPreprocessing';
 import SummarizationDedup from './components/processing/SummarizationDedup';
 import PromptSchemaManager from './components/processing/PromptSchemaManager';
+import Settings from './components/settings/Settings';
 
 // Enterprise color palette
 const createEnterpriseTheme = (mode) => createTheme({
@@ -165,13 +165,6 @@ const menuItems = [
     description: 'Create and manage embeddings'
   },
   { 
-    id: 'settings', 
-    label: 'Settings', 
-    icon: <SettingsIcon />, 
-    component: Settings,
-    description: 'Configure environment'
-  },
-  { 
     id: 'preprocess', 
     label: 'Query Preprocessing', 
     icon: <PreprocessIcon />, 
@@ -219,6 +212,13 @@ const menuItems = [
     icon: <SchemaIcon />, 
     component: PromptSchemaManager,
     description: 'Configure prompt templates & JSON schemas'
+  },
+  { 
+    id: 'settings', 
+    label: 'Settings', 
+    icon: <SettingsIcon />, 
+    component: Settings,
+    description: 'Configure environment'
   },
 ];
 
@@ -302,7 +302,7 @@ function App() {
               
               <DashboardIcon sx={{ mr: 2 }} />
               <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-                RAG MongoDB Pipeline
+                RAG Pipeline
               </Typography>
 
               <FormControlLabel
@@ -446,7 +446,7 @@ function App() {
             <Box sx={{ p: 2 }}>
               <Collapse in={drawerOpen} timeout={300}>
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-                  RAG MongoDB Demo v1.0
+                  RAG Demo v1.2
                 </Typography>
                 <br />
                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
