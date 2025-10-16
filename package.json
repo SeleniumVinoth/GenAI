@@ -1,6 +1,6 @@
 {
   "name": "rag-mongo-demo",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Demo project for storing and retrieving testcases with MongoDB Atlas Vector Search",
   "main": "index.js",
   "type": "module",
