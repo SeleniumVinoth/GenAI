@@ -134,159 +134,57 @@ const DEFAULT_JSON_SCHEMA = `{
   ]
 }`;
 
-const DEFAULT_PROMPT_TEMPLATE = `# ICEPOT FRAMEWORK FOR HEALTHCARE TEST CASE GENERATION
+const DEFAULT_PROMPT_TEMPLATE = `# HEALTHCARE TEST CASE GENERATION
 
-## I – INSTRUCTION
-Generate 5-8 high-quality Integration/Functional test cases for the given user story using the retrieved test case context from MongoDB. Each test case must:
-- Validate end-to-end workflows specific to healthcare systems
-- Include detailed, numbered test steps
-- Define measurable expected results with specific data formats
-- Cover positive, negative, and edge case scenarios
-- Reference source test cases used for inspiration
-- Address security, compliance (HIPAA), and usability requirements
+## INSTRUCTION
+Generate 6 high-quality test cases for the user story using retrieved test case context. Each must:
+- Include 5-8 detailed, numbered test steps
+- Define measurable expected results
+- Cover positive, negative, and edge cases
+- Reference source test cases
 
-## C – CONTEXT / SITUATION
-You have access to a MongoDB vector database containing 6,000+ healthcare test cases from a Hospital Management System covering:
-- **Modules**: Patient Registration, Laboratory, Ward Management, Billing, Prescription, Diagnostics
-- **Healthcare Entities**: UHID (Unique Health ID), PRN (Patient Registration Number), ERN (Emergency Registration Number), OTP (One-Time Password)
-- **Workflows**: Patient admission, lab test ordering, report generation, prescription management, billing cycles
+## CONTEXT
+MongoDB database with 6,000+ healthcare test cases covering Patient Registration, Laboratory, Ward Management, Billing, Prescription, Diagnostics.
+Healthcare entities: UHID, PRN, ERN, OTP.
 
-**Current Retrieval Context:**
-- Query has been preprocessed (normalized, abbreviations expanded, synonyms added)
-- Retrieved {topResultsCount} relevant test cases from database
-- Results have been deduplicated (cosine similarity > 0.95 removed)
-- Comprehensive RAG analysis provided below
+## EXAMPLES
+Study the retrieved test cases below for format, terminology, and step structure.
 
-## E – EXAMPLES (Retrieved from RAG Database)
-Below are real test cases retrieved from the database that should guide your generation:
+## PERSONA
+Senior QA Engineer with healthcare systems expertise (HIPAA, HMS, PHI/PII).
 
-**Example 1: High-Priority Test Case Structure**
-{
-  "testCaseId": "TC_005",
-  "module": "Patient Registration",
-  "testCaseTitle": "UHID Conversion Validation - PRN to UHID Transform",
-  "testCaseDescription": "Verify that the system successfully converts Patient Registration Number (PRN) to Unique Health ID (UHID) format with proper validation and database persistence.",
-  "testSteps": [
-    "1. Navigate to Patient Registration module dashboard",
-    "2. Select patient record with PRN: 12345678",
-    "3. Click 'Convert to UHID' button",
-    "4. System validates PRN format (must be 8 digits)",
-    "5. System generates UHID in format XXXXXX-XXXX",
-    "6. Verify UHID saved to patient_master table with timestamp",
-    "7. Verify confirmation message: 'UHID generated successfully'"
-  ],
-  "expectedResults": "UHID generated in format 123456-7890, database entry created with timestamp, PRN marked as converted, audit log entry created, confirmation message displayed to user",
-  "priority": "P1 (Critical)",
-  "testType": "Integration",
-  "linkedUserStories": ["HC-080"],
-  "riskLevel": "High",
-  "complianceNotes": "HIPAA - Ensure patient ID transformation maintains data integrity"
-}
-
-**Example 2: Negative Test Case Structure**
-{
-  "testCaseId": "TC_102",
-  "module": "Authentication",
-  "testCaseTitle": "Patient Login - Expired OTP Validation",
-  "testSteps": [
-    "1. Navigate to patient login portal",
-    "2. Enter registered mobile: +91-9876543210",
-    "3. Request OTP",
-    "4. Wait for OTP expiry (configured timeout: 5 minutes)",
-    "5. Enter expired OTP code",
-    "6. Click 'Submit' button"
-  ],
-  "expectedResults": "System displays error: 'OTP has expired. Please request a new OTP.' Login attempt fails. Option to resend OTP is shown. Failed attempt logged in security_logs table.",
-  "priority": "P2 (High)",
-  "testType": "Functional - Negative"
-}
-
-**Example 3: Edge Case Structure**
-{
-  "testCaseId": "TC_207",
-  "module": "Laboratory",
-  "testCaseTitle": "Lab Report Generation - Concurrent Request Handling",
-  "testSteps": [
-    "1. Technician A: Navigate to Lab Reports module",
-    "2. Technician A: Select pending test for Patient UHID: 123456-7890",
-    "3. Technician A: Click 'Generate Report'",
-    "4. Technician B: Simultaneously access same pending test",
-    "5. Technician B: Attempt to generate report",
-    "6. Verify system behavior for concurrent access"
-  ],
-  "expectedResults": "System locks report generation for Technician A. Technician B sees message: 'Report generation in progress by another user.' Only one report is generated. Database maintains consistency. Audit log records both access attempts.",
-  "priority": "P2 (High)",
-  "testType": "Integration - Concurrency"
-}
-
-## P – PERSONA
-You are a **Senior QA Test Engineer** with 10+ years of experience in healthcare systems testing. You specialize in:
-- Hospital Management Software (HMS) testing across registration, laboratory, billing, and ward management modules
-- Healthcare compliance (HIPAA, HL7, FHIR standards)
-- Healthcare workflows and terminology (UHID, PRN, ERN, ICD codes, CPT codes)
-- Integration testing, API testing, and database validation
-- Security testing for PHI/PII (Protected Health Information/Personally Identifiable Information)
-- Performance testing for high-volume patient data systems
-
-## O – OUTPUT FORMAT
-Provide your response as a **valid JSON object** following this exact schema:
-
+## OUTPUT FORMAT
+Valid JSON with this schema:
 {
   "analysis": {
-    "userStoryTitle": "string - title of the user story",
-    "userStoryModule": "string - module name",
-    "existingCoverageCount": "number - count of retrieved test cases",
-    "gapsIdentified": ["string - gap 1", "string - gap 2", ...]
+    "userStoryTitle": "string",
+    "userStoryModule": "string",
+    "existingCoverageCount": number,
+    "gapsIdentified": ["string"]
   },
-  "newTestCases": [
-    {
-      "testCaseId": "TC_NEW_001",
-      "module": "string - module name",
-      "testCaseTitle": "string - concise descriptive title",
-      "testCaseDescription": "string - detailed purpose and scope",
-      "preconditions": "string - required setup and state",
-      "testSteps": [
-        "1. Step one with specific action",
-        "2. Step two with expected UI element",
-        "3. Step three with data validation"
-      ],
-      "expectedResults": "string - detailed measurable outcomes with specific data formats and system behaviors",
-      "priority": "P1 | P2 | P3",
-      "testType": "Integration | Functional | Non-Functional",
-      "riskLevel": "Critical | High | Medium | Low",
-      "linkedUserStories": ["HC-XXX"],
-      "sourceCitations": ["TC_005", "TC_102"],
-      "complianceNotes": "string - HIPAA/regulatory considerations",
-      "estimatedExecutionTime": "string - e.g., 5-7 minutes"
-    }
-  ],
-  "rationale": [
-    {
-      "testCaseId": "TC_NEW_001",
-      "reason": "string - why this test case is needed and how it complements existing coverage"
-    }
-  ],
-  "recommendations": "string - overall testing strategy recommendations"
+  "newTestCases": [{
+    "testCaseId": "string",
+    "module": "string",
+    "testCaseTitle": "string",
+    "testCaseDescription": "string",
+    "preconditions": "string",
+    "testSteps": "string with \\r\\n separators",
+    "expectedResults": "string",
+    "priority": "P1|P2|P3",
+    "testType": "Integration|Functional",
+    "riskLevel": "Critical|High|Medium|Low",
+    "linkedUserStories": ["string"],
+    "sourceCitations": ["string"],
+    "complianceNotes": "string",
+    "estimatedExecutionTime": "string"
+  }],
+  "rationale": [{"testCaseId": "string", "reason": "string"}],
+  "recommendations": "string"
 }
 
-## T – TONE
-Use a **professional, technical tone** with:
-- **Precise healthcare terminology**: Use exact terms like UHID, PRN, ERN, OTP (not generic "patient ID")
-- **Measurable language**: "must validate", "shall generate", "will display" (not "should work")
-- **Explicit validation criteria**: "format XXXXXX-XXXX", "database table patient_master", "error code E401"
-- **Compliance awareness**: Reference HIPAA, data encryption, audit logging where applicable
-- **Risk-based prioritization**: Clearly state risk levels and their business impact
-- **Domain expertise**: Demonstrate understanding of healthcare workflows and patient safety implications
+## TONE
+Professional, technical. Use precise healthcare terminology (UHID, PRN, ERN). Measurable language. Compliance awareness.`;
 
----
-
-### CURRENT EXECUTION CONTEXT
-You will receive below:
-1. **User Story for New Test Generation**: The story/feature requiring test cases
-2. **Retrieved Test Cases**: Top 10 most relevant existing test cases from database
-3. **RAG Analysis Summary**: Comprehensive analysis of existing coverage, gaps, and recommendations
-
-Now generate high-quality, contextually relevant test cases following the ICEPOT framework above.`;
 
 const EXAMPLE_TEST_QUERY = `Module: Patient Communication & Diagnostics
 User Story ID: HC-125
@@ -527,8 +425,8 @@ Please provide your response in the expected JSON format.`;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: fullPrompt,
-          temperature: 0.7,
-          maxTokens: 1000
+          temperature: 0.5,
+          maxTokens: 10000
         })
       });
 
@@ -690,11 +588,17 @@ Please provide your response in the expected JSON format.`;
       let finalResults = rerankedResults;
       
       if (finalResults.length > 5) {
+        // Strip embeddings to reduce payload size (causes 413 error)
+        const resultsWithoutEmbeddings = finalResults.map(r => {
+          const { embedding, ...rest } = r;
+          return rest;
+        });
+        
         const dedupResponse = await fetch('http://localhost:3001/api/search/deduplicate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            results: finalResults,
+            results: resultsWithoutEmbeddings,
             threshold: 0.95 // Stricter threshold as per requirement
           })
         });
@@ -720,14 +624,21 @@ Please provide your response in the expected JSON format.`;
       setAccuracyScore(calculatedAccuracy);
       console.log(`📊 Average similarity score: ${avgSimilarity.toFixed(3)} (${(calculatedAccuracy * 100).toFixed(1)}%)`);
 
-      // STEP 6: Summarization (TestLeaf API)
+      // STEP 6: Summarization (TestLeaf API) - Using only top 5 to reduce prompt size
       console.log('📋 STEP 6: RAG Summarization via TestLeaf API');
       setGenerationProgress(55);
+      
+      // Strip embeddings and limit to top 5 results to reduce payload size
+      const topResultsForSummary = topResults.slice(0, 5).map(r => {
+        const { embedding, ...rest } = r;
+        return rest;
+      });
+      
       const summarizeResponse = await fetch('http://localhost:3001/api/search/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          results: topResults,
+          results: topResultsForSummary,
           summaryType: 'detailed'
         })
       });
@@ -744,100 +655,79 @@ Please provide your response in the expected JSON format.`;
       console.log('🎨 STEP 7: Building ICEPOT Prompt Template with Context');
       setGenerationProgress(65);
       
+      // Fetch the latest test case ID from database
+      const latestIdResponse = await fetch('http://localhost:3001/api/testcases/latest-id');
+      let nextTestCaseId = 'TC_NEW_001';
+      let startingId = 1;
+      
+      if (latestIdResponse.ok) {
+        const latestIdData = await latestIdResponse.json();
+        nextTestCaseId = latestIdData.nextTestCaseId || 'TC_NEW_001';
+        startingId = latestIdData.nextId || 1;
+        console.log(`   Latest test case: ${latestIdData.latestId}, Next ID: ${nextTestCaseId}`);
+      }
+      
+      // Optimize: Only include essential fields from retrieved test cases to reduce prompt size
+      // OPTIMIZATION: Only include top 3-5 most relevant test cases to reduce prompt size
+      const topRelevantCount = Math.min(5, topResults.length);
+      const essentialTestCases = topResults.slice(0, topRelevantCount).map(tc => ({
+        id: tc.id,
+        module: tc.module,
+        title: tc.title,
+        steps: tc.steps, // Most important field for generation
+        priority: tc.priority
+      }));
+      
+      // Format example test steps in RAG style (from existing test cases)
+      const exampleSteps = topResults[0]?.steps || '';
+      
       const fullPrompt = `${promptTemplate}
 
-### CURRENT USER STORY FOR NEW TEST GENERATION:
+### USER STORY FOR TEST GENERATION:
 ${testQuery}
-${preprocessingData ? `\n### QUERY PREPROCESSING ANALYSIS:\nOriginal: ${testQuery}\nProcessed: ${finalQuery}\nTransformations: ${JSON.stringify(preprocessingData.transformations || {})}` : ''}
 
-### COMPREHENSIVE RAG ANALYSIS OF EXISTING TEST CASES:
+### RAG SUMMARY (${topResults.length} similar test cases found):
 ${summaryData.summary}
 
-### EXISTING TEST CASES DETAILS (Top 10 Retrieved - USE AS REFERENCE):
-${JSON.stringify(topResults, null, 2)}
+### REFERENCE TEST CASES (Top ${essentialTestCases.length} - Study the test steps format):
+${JSON.stringify(essentialTestCases, null, 2)}
 
-### JSON SCHEMA FOR OUTPUT:
-${jsonSchema}
+### REQUIREMENTS:
+1. Start IDs from ${nextTestCaseId}, continue sequentially
+2. Format testSteps with \\r\\n: "1.Step\\r\\n2.Step\\r\\n..."
+3. Include 5-8 steps per test case
+4. Add linkedUserStories and sourceCitations arrays
+5. Generate 6 test cases covering various scenarios
 
-### CRITICAL GENERATION REQUIREMENTS:
-1. **Test Steps Requirement**: Each test case MUST include 5-8 detailed, numbered test steps following the pattern shown in existing test cases
-2. **Step Detail Level**: Each step must specify exact UI elements, actions, data inputs, and validation points
-3. **Coverage Quality**: Generate test cases that cover positive, negative, and edge case scenarios
-4. **Similarity Threshold**: Only use retrieved test cases with similarity score > 0.75 as reference
-5. **Healthcare Context**: Use exact healthcare terminology (UHID, PRN, ERN) not generic terms
-6. **Expected Results**: Must be measurable with specific formats, error codes, and system behaviors
-7. **Module Consistency**: Ensure generated test cases match the module and workflow of the user story
-8. **Preconditions**: Explicitly state all required setup, data, and system state before test execution
-
-### STEP GENERATION GUIDELINES:
-Look at existing test cases and follow this pattern for each step:
-- Step 1: Navigation (e.g., "Navigate to [Module] → [Submodule] → [Screen]")
-- Step 2: Data Setup (e.g., "Select patient record with UHID: XXXXXX-XXXX")
-- Step 3: Action Trigger (e.g., "Click [Button Name] button")
-- Step 4: Data Input (e.g., "Enter value in [Field Name] field: [Example Value]")
-- Step 5: Validation Check (e.g., "Verify [Field/Table] displays [Expected Value]")
-- Step 6: Database Verification (e.g., "Check [table_name] for record with [condition]")
-- Step 7: Result Confirmation (e.g., "Verify success message: '[Exact Message Text]'")
-
-### EXPECTED JSON OUTPUT FORMAT:
-Return a valid JSON object with this structure:
+### OUTPUT JSON:
 {
   "analysis": {
     "userStoryTitle": "string",
     "userStoryModule": "string",
-    "existingCoverageCount": number,
-    "averageSimilarityScore": ${avgSimilarity.toFixed(3)},
-    "gapsIdentified": ["gap 1", "gap 2", ...]
+    "existingCoverageCount": ${topResults.length},
+    "gapsIdentified": ["string"]
   },
-  "newTestCases": [
-    {
-      "testCaseId": "TC_NEW_001",
-      "module": "string",
-      "testCaseTitle": "string - descriptive title",
-      "testCaseDescription": "string - detailed purpose and scope",
-      "preconditions": "string - required setup including user roles, data state, system configuration",
-      "testSteps": [
-        "1. Navigate to [Module] dashboard and select [Option]",
-        "2. Enter patient UHID: XXXXXX-XXXX in search field",
-        "3. Click 'Search' button and wait for results to load",
-        "4. Select patient record from search results table",
-        "5. Click '[Action]' button in toolbar",
-        "6. Verify confirmation dialog displays with message: '[Message]'",
-        "7. Click 'Confirm' and verify success notification",
-        "8. Check database table [table_name] for updated status"
-      ],
-      "expectedResults": "Detailed measurable outcome with specific data formats, error codes, database states, and UI feedback",
-      "priority": "P1 | P2 | P3",
-      "testType": "Integration | Functional | Security",
-      "riskLevel": "Critical | High | Medium | Low",
-      "linkedUserStories": ["HC-XXX"],
-      "sourceCitations": ["TC_XXX", "TC_YYY"],
-      "complianceNotes": "HIPAA/regulatory considerations",
-      "estimatedExecutionTime": "5-10 minutes"
-    }
-  ],
-  "rationale": [
-    {
-      "testCaseId": "TC_NEW_001",
-      "reason": "This test case addresses [gap] by validating [scenario] which was not covered in existing test cases [TC_XXX, TC_YYY]"
-    }
-  ],
-  "recommendations": "Overall testing strategy and additional scenarios to consider"
-}
+  "newTestCases": [{
+    "testCaseId": "${nextTestCaseId}",
+    "module": "string",
+    "testCaseTitle": "string",
+    "testCaseDescription": "string",
+    "preconditions": "string",
+    "testSteps": "string with \\r\\n",
+    "expectedResults": "string",
+    "priority": "P1|P2|P3",
+    "testType": "Integration|Functional",
+    "riskLevel": "High|Medium|Low",
+    "linkedUserStories": ["string"],
+    "sourceCitations": ["string"],
+    "complianceNotes": "string",
+    "estimatedExecutionTime": "string"
+  }],
+  "rationale": [{"testCaseId": "string", "reason": "string"}],
+  "recommendations": "string"
+}`;
 
-### QUALITY CHECKLIST BEFORE RESPONDING:
-✓ Each test case has 5-8 detailed numbered steps
-✓ Steps follow the navigation → setup → action → validation pattern
-✓ Expected results are measurable and specific
-✓ Preconditions are explicitly stated
-✓ Healthcare terminology is accurate (UHID, not "patient ID")
-✓ Source citations reference retrieved test cases
-✓ Test cases complement (not duplicate) existing coverage
-✓ JSON is valid and follows the schema
-
-Generate ${topResults.length >= 8 ? '6-8' : '4-6'} high-quality test cases now.`;
-
-      console.log(`✅ Prompt template built: ${fullPrompt.length} characters`);
+      console.log(`✅ Prompt built: ${fullPrompt.length} chars`);
 
       // STEP 8: LLM Generation (TestLeaf API - Generate test case JSON)
       console.log('🤖 STEP 8: LLM Generation via TestLeaf API');
@@ -847,8 +737,8 @@ Generate ${topResults.length >= 8 ? '6-8' : '4-6'} high-quality test cases now.`
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: fullPrompt,
-          temperature: 0.5, // Lower temperature for more focused, consistent output
-          maxTokens: 4000   // More tokens for detailed test cases
+          temperature: 0.5,
+          maxTokens: 10000   // Increased back to 2500 for 6 complete test cases
         })
       });
 
@@ -860,42 +750,120 @@ Generate ${topResults.length >= 8 ? '6-8' : '4-6'} high-quality test cases now.`
       console.log('✅ LLM generation complete');
       console.log(`   Tokens: ${generatedData.tokens?.total || 0}, Cost: $${generatedData.cost?.total || 0}`);
 
-      // STEP 9: JSON Validation (AJV or manual validation)
+      // STEP 9: JSON Validation (Parse and validate)
       console.log('✔️ STEP 9: JSON Validation');
       setGenerationProgress(90);
       
       let validatedResponse = generatedData.response;
       let validationErrors = [];
       
+      // Handle markdown-wrapped JSON response (multiple formats)
+      try {
+        let rawText = null;
+        
+        // Case 1: Response has .raw property
+        if (validatedResponse && validatedResponse.raw) {
+          rawText = validatedResponse.raw;
+          console.log('   Parsing from response.raw property');
+        }
+        // Case 2: Response itself is a string
+        else if (typeof validatedResponse === 'string') {
+          rawText = validatedResponse;
+          console.log('   Parsing from response string');
+        }
+        
+        // Extract JSON from markdown code blocks if needed
+        if (rawText) {
+          console.log(`   Raw text length: ${rawText.length} chars`);
+          const jsonMatch = rawText.match(/```json\s*([\s\S]*?)\s*```/);
+          if (jsonMatch) {
+            rawText = jsonMatch[1].trim();
+            console.log('   Extracted JSON from markdown code block');
+          }
+          
+          // Check if JSON might be truncated (incomplete)
+          if (!rawText.endsWith('}')) {
+            console.warn('⚠️ Warning: JSON appears to be truncated (does not end with }). Attempting to parse anyway...');
+            validationErrors.push('Warning: Response may be incomplete due to token limit. Consider increasing maxTokens.');
+          }
+          
+          validatedResponse = JSON.parse(rawText);
+          console.log('✅ Successfully parsed JSON from response');
+        }
+      } catch (e) {
+        validationErrors.push(`Failed to parse JSON: ${e.message}`);
+        console.error('❌ JSON parsing error:', e);
+        console.error('   Response type:', typeof generatedData.response);
+        console.error('   Response has .raw?', !!(generatedData.response && generatedData.response.raw));
+        if (generatedData.response && generatedData.response.raw) {
+          console.error('   Raw text preview:', generatedData.response.raw.substring(0, 300));
+          console.error('   Raw text ending:', generatedData.response.raw.substring(generatedData.response.raw.length - 100));
+        }
+      }
+      
       // Validate response structure
       if (!validatedResponse || typeof validatedResponse !== 'object') {
         validationErrors.push('Response is not a valid JSON object');
       } else {
         // Check for required fields
-        if (!validatedResponse.response) {
-          validationErrors.push('Missing "response" field');
+        if (!validatedResponse.analysis) {
+          validationErrors.push('Missing "analysis" object');
         } else {
-          const innerResponse = validatedResponse.response;
+          if (!validatedResponse.analysis.userStoryTitle) {
+            validationErrors.push('Missing analysis.userStoryTitle');
+          }
+        }
+        
+        if (!validatedResponse.newTestCases || !Array.isArray(validatedResponse.newTestCases)) {
+          validationErrors.push('Missing or invalid "newTestCases" array');
+        } else if (validatedResponse.newTestCases.length === 0) {
+          validationErrors.push('newTestCases array is empty - no test cases generated');
+        } else {
+          console.log(`   Validating ${validatedResponse.newTestCases.length} test cases...`);
           
-          if (!innerResponse.analysis) {
-            validationErrors.push('Missing "analysis" object');
-          }
-          if (!innerResponse.newTestCases || !Array.isArray(innerResponse.newTestCases)) {
-            validationErrors.push('Missing or invalid "newTestCases" array');
-          } else {
-            // Validate each test case
-            innerResponse.newTestCases.forEach((tc, idx) => {
-              if (!tc.testCaseId) validationErrors.push(`Test case ${idx + 1}: Missing testCaseId`);
-              if (!tc.testCaseTitle) validationErrors.push(`Test case ${idx + 1}: Missing testCaseTitle`);
-              if (!tc.testSteps || !Array.isArray(tc.testSteps) || tc.testSteps.length < 5) {
-                validationErrors.push(`Test case ${idx + 1}: Must have at least 5 test steps`);
+          // Validate each test case
+          validatedResponse.newTestCases.forEach((tc, idx) => {
+            const tcNum = idx + 1;
+            
+            if (!tc.testCaseId) {
+              validationErrors.push(`Test case ${tcNum}: Missing testCaseId`);
+            } else if (!tc.testCaseId.startsWith('TC_')) {
+              validationErrors.push(`Test case ${tcNum} (${tc.testCaseId}): ID should start with 'TC_'`);
+            }
+            
+            if (!tc.module) validationErrors.push(`Test case ${tcNum}: Missing module`);
+            if (!tc.testCaseTitle) validationErrors.push(`Test case ${tcNum}: Missing testCaseTitle`);
+            if (!tc.testCaseDescription) validationErrors.push(`Test case ${tcNum}: Missing testCaseDescription`);
+            
+            // testSteps can be string (RAG format) or array
+            if (!tc.testSteps) {
+              validationErrors.push(`Test case ${tcNum}: Missing testSteps`);
+            } else if (typeof tc.testSteps === 'string') {
+              // Count steps in string format (split by \r\n or \n)
+              const stepCount = tc.testSteps.split(/\\r\\n|\\n|\r\n|\n/).filter(s => s.trim()).length;
+              if (stepCount < 5) {
+                validationErrors.push(`Test case ${tcNum}: Must have at least 5 test steps (found ${stepCount})`);
               }
-              if (!tc.expectedResults) validationErrors.push(`Test case ${idx + 1}: Missing expectedResults`);
-            });
-          }
-          if (!innerResponse.rationale || !Array.isArray(innerResponse.rationale)) {
-            validationErrors.push('Missing or invalid "rationale" array');
-          }
+            } else if (Array.isArray(tc.testSteps)) {
+              if (tc.testSteps.length < 5) {
+                validationErrors.push(`Test case ${tcNum}: Must have at least 5 test steps (found ${tc.testSteps.length})`);
+              }
+            } else {
+              validationErrors.push(`Test case ${tcNum}: testSteps must be string or array`);
+            }
+            
+            if (!tc.expectedResults) validationErrors.push(`Test case ${tcNum}: Missing expectedResults`);
+            if (!tc.priority) validationErrors.push(`Test case ${tcNum}: Missing priority`);
+            
+            // Check for linkedUserStories array
+            if (!tc.linkedUserStories || !Array.isArray(tc.linkedUserStories) || tc.linkedUserStories.length === 0) {
+              validationErrors.push(`Test case ${tcNum}: Missing or empty linkedUserStories array`);
+            }
+          });
+        }
+        
+        if (!validatedResponse.rationale || !Array.isArray(validatedResponse.rationale)) {
+          validationErrors.push('Missing or invalid "rationale" array');
         }
       }
       
@@ -911,7 +879,10 @@ Generate ${topResults.length >= 8 ? '6-8' : '4-6'} high-quality test cases now.`
       
       // Combine all the data for comprehensive display
       setLlmRagResult({
-        ...generatedData,
+        response: validatedResponse, // Use validated/parsed response
+        tokens: generatedData.tokens,
+        cost: generatedData.cost,
+        model: generatedData.model,
         // Pipeline data
         preprocessingData: preprocessingData,
         originalQuery: testQuery,
@@ -1029,13 +1000,28 @@ Generate ${topResults.length >= 8 ? '6-8' : '4-6'} high-quality test cases now.`
                   </TableCell>
                   <TableCell>
                     <Box component="ol" sx={{ pl: 2, m: 0, fontSize: '0.85rem' }}>
-                      {(testCase.testSteps || []).map((step, idx) => (
-                        <li key={idx} style={{ marginBottom: '4px' }}>
-                          {step.replace(/^\d+\.\s*/, '')}
-                        </li>
-                      ))}
+                      {(() => {
+                        // Handle testSteps as string (RAG format with \r\n)
+                        if (typeof testCase.testSteps === 'string') {
+                          const steps = testCase.testSteps.split(/\\r\\n|\\n|\r\n|\n/).filter(s => s.trim());
+                          return steps.map((step, idx) => (
+                            <li key={idx} style={{ marginBottom: '4px' }}>
+                              {step.replace(/^\d+\.\s*/, '')}
+                            </li>
+                          ));
+                        }
+                        // Handle testSteps as array
+                        if (Array.isArray(testCase.testSteps)) {
+                          return testCase.testSteps.map((step, idx) => (
+                            <li key={idx} style={{ marginBottom: '4px' }}>
+                              {step.replace(/^\d+\.\s*/, '')}
+                            </li>
+                          ));
+                        }
+                        return null;
+                      })()}
                     </Box>
-                    {(!testCase.testSteps || testCase.testSteps.length === 0) && (
+                    {(!testCase.testSteps || (Array.isArray(testCase.testSteps) && testCase.testSteps.length === 0) || (typeof testCase.testSteps === 'string' && !testCase.testSteps.trim())) && (
                       <Typography variant="caption" color="error">No steps defined</Typography>
                     )}
                   </TableCell>
@@ -1060,7 +1046,7 @@ Generate ${topResults.length >= 8 ? '6-8' : '4-6'} high-quality test cases now.`
     );
   };
 
-  // Export to CSV function
+  // Export to CSV function (handles both string and array formats)
   const exportToCSV = (testCases, filename) => {
     if (!testCases || testCases.length === 0) {
       alert('No test cases to export');
@@ -1068,16 +1054,26 @@ Generate ${topResults.length >= 8 ? '6-8' : '4-6'} high-quality test cases now.`
     }
 
     const headers = ['Test Case ID', 'Title', 'Module', 'Priority', 'Test Type', 'Preconditions', 'Test Steps', 'Expected Results'];
-    const rows = testCases.map(tc => [
-      tc.testCaseId || tc.id || '',
-      tc.testCaseTitle || tc.title || '',
-      tc.module || '',
-      tc.priority || '',
-      tc.testType || 'Functional',
-      tc.preconditions || tc.testCaseDescription || '',
-      (tc.testSteps || []).join(' | '),
-      tc.expectedResults || ''
-    ]);
+    const rows = testCases.map(tc => {
+      // Handle testSteps as string or array
+      let stepsText = '';
+      if (typeof tc.testSteps === 'string') {
+        stepsText = tc.testSteps.replace(/\\r\\n|\\n|\r\n|\n/g, ' | ');
+      } else if (Array.isArray(tc.testSteps)) {
+        stepsText = tc.testSteps.join(' | ');
+      }
+      
+      return [
+        tc.testCaseId || tc.id || '',
+        tc.testCaseTitle || tc.title || '',
+        tc.module || '',
+        tc.priority || '',
+        tc.testType || 'Functional',
+        tc.preconditions || tc.testCaseDescription || '',
+        stepsText,
+        tc.expectedResults || ''
+      ];
+    });
 
     const csvContent = [
       headers.join(','),
@@ -1456,7 +1452,7 @@ Generate ${topResults.length >= 8 ? '6-8' : '4-6'} high-quality test cases now.`
                               size="small"
                               variant="outlined"
                               startIcon={<ExportIcon />}
-                              onClick={() => exportToCSV(llmRagResult.response.response.newTestCases, 'generated_test_cases')}
+                              onClick={() => exportToCSV(llmRagResult.response.newTestCases, 'generated_test_cases')}
                             >
                               Export CSV
                             </Button>
@@ -1649,7 +1645,7 @@ Generate ${topResults.length >= 8 ? '6-8' : '4-6'} high-quality test cases now.`
                           ) : (
                             <>
                               {/* Analysis Summary */}
-                              {llmRagResult.response?.response?.analysis && (
+                              {llmRagResult.response?.analysis && (
                                 <Card sx={{ mb: 3, bgcolor: '#fff9c4' }}>
                                   <CardContent>
                                     <Typography variant="h6" gutterBottom>
@@ -1658,19 +1654,19 @@ Generate ${topResults.length >= 8 ? '6-8' : '4-6'} high-quality test cases now.`
                                     <Grid container spacing={2}>
                                       <Grid item xs={12} sm={6}>
                                         <Typography variant="body2">
-                                          <strong>User Story:</strong> {llmRagResult.response.response.analysis.userStoryTitle}
+                                          <strong>User Story:</strong> {llmRagResult.response.analysis.userStoryTitle}
                                         </Typography>
                                         <Typography variant="body2">
-                                          <strong>Module:</strong> {llmRagResult.response.response.analysis.userStoryModule}
+                                          <strong>Module:</strong> {llmRagResult.response.analysis.userStoryModule}
                                         </Typography>
                                         <Typography variant="body2">
-                                          <strong>Coverage:</strong> {llmRagResult.response.response.analysis.existingCoverageCount} existing test cases
+                                          <strong>Coverage:</strong> {llmRagResult.response.analysis.existingCoverageCount} existing test cases
                                         </Typography>
                                       </Grid>
                                       <Grid item xs={12} sm={6}>
                                         <Typography variant="subtitle2" gutterBottom>Gaps Identified:</Typography>
                                         <Box component="ul" sx={{ pl: 2, m: 0 }}>
-                                          {(llmRagResult.response.response.analysis.gapsIdentified || []).map((gap, idx) => (
+                                          {(llmRagResult.response.analysis.gapsIdentified || []).map((gap, idx) => (
                                             <li key={idx}><Typography variant="body2">{gap}</Typography></li>
                                           ))}
                                         </Box>
@@ -1681,23 +1677,35 @@ Generate ${topResults.length >= 8 ? '6-8' : '4-6'} high-quality test cases now.`
                               )}
 
                               {/* Generated Test Cases Table */}
-                              {llmRagResult.response?.response?.newTestCases ? (
-                                renderTestCaseTable(llmRagResult.response.response.newTestCases, 'Generated Test Cases', false)
+                              {llmRagResult.response?.newTestCases && llmRagResult.response.newTestCases.length > 0 ? (
+                                renderTestCaseTable(llmRagResult.response.newTestCases, 'Generated Test Cases', false)
                               ) : (
                                 <Alert severity="warning">
-                                  No test cases generated. The response may not be in the expected format.
+                                  <Typography variant="body2">
+                                    <strong>No test cases generated.</strong>
+                                  </Typography>
+                                  {llmRagResult.validationErrors && llmRagResult.validationErrors.length > 0 && (
+                                    <Box sx={{ mt: 1 }}>
+                                      <Typography variant="caption" display="block">Validation errors:</Typography>
+                                      <ul style={{ marginTop: 4, paddingLeft: 20 }}>
+                                        {llmRagResult.validationErrors.map((err, idx) => (
+                                          <li key={idx}><Typography variant="caption">{err}</Typography></li>
+                                        ))}
+                                      </ul>
+                                    </Box>
+                                  )}
                                 </Alert>
                               )}
 
                               {/* Rationale Section */}
-                              {llmRagResult.response?.response?.rationale && (
+                              {llmRagResult.response?.rationale && (
                                 <Card sx={{ mt: 3, bgcolor: '#f3e5f5' }}>
                                   <CardContent>
                                     <Typography variant="h6" gutterBottom>
                                       💡 Generation Rationale
                                     </Typography>
                                     <Box component="ul" sx={{ pl: 2 }}>
-                                      {llmRagResult.response.response.rationale.map((item, idx) => (
+                                      {llmRagResult.response.rationale.map((item, idx) => (
                                         <li key={idx}>
                                           <Typography variant="body2">
                                             <strong>{item.testCaseId}:</strong> {item.reason}
@@ -1710,10 +1718,10 @@ Generate ${topResults.length >= 8 ? '6-8' : '4-6'} high-quality test cases now.`
                               )}
 
                               {/* Recommendations */}
-                              {llmRagResult.response?.response?.recommendations && (
+                              {llmRagResult.response?.recommendations && (
                                 <Alert severity="info" sx={{ mt: 2 }}>
                                   <Typography variant="body2">
-                                    <strong>📋 Recommendations:</strong> {llmRagResult.response.response.recommendations}
+                                    <strong>📋 Recommendations:</strong> {llmRagResult.response.recommendations}
                                   </Typography>
                                 </Alert>
                               )}

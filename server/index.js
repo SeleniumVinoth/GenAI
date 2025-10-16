@@ -29,7 +29,9 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+// Increase payload limit to handle large embeddings (default is 100kb)
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Configure multer for file uploads
@@ -806,69 +808,31 @@ app.post('/api/search/summarize', async (req, res) => {
       });
     }
 
-    // Prepare comprehensive content for summarization
-    // Handle both field name formats and include ALL available information
+    // Prepare concise content for summarization (reduce detail to avoid large prompts)
+    // Handle both field name formats and include key information only
     const resultsText = results.map((r, idx) => {
       const id = r.testCaseId || r.id || 'N/A';
       const title = r.testCaseTitle || r.title || 'No title';
-      const description = r.testCaseDescription || r.description || 'No description';
-      const steps = r.testSteps || r.steps || [];
-      const expectedResults = r.expectedResults || r.expectedResults || 'Not specified';
       const module = r.module || 'Unknown';
-      const priority = r.priority || 'Not specified';
-      const automationManual = r.automationManual || r.automationStatus || 'Not specified';
-      const risk = r.risk || 'Not specified';
+      const priority = r.priority || 'N/A';
       const type = r.type || 'Functional';
       
-      let testCaseDetail = `${idx + 1}. TEST CASE: ${id}`;
-      testCaseDetail += `\n   MODULE: ${module}`;
-      testCaseDetail += `\n   PRIORITY: ${priority} | RISK: ${risk} | TYPE: ${type} | AUTOMATION: ${automationManual}`;
-      testCaseDetail += `\n   TITLE: ${title}`;
-      testCaseDetail += `\n   DESCRIPTION: ${description}`;
-      
-      if (steps) {
-        testCaseDetail += `\n   TEST STEPS:`;
-        if (Array.isArray(steps) && steps.length > 0) {
-          steps.forEach((step, stepIdx) => {
-            testCaseDetail += `\n     ${stepIdx + 1}. ${step}`;
-          });
-        } else if (typeof steps === 'string' && steps.trim()) {
-          // Handle case where steps is a string (split by common delimiters)
-          const stepArray = steps.split(/\r?\n|\r/).filter(step => step.trim());
-          stepArray.forEach((step, stepIdx) => {
-            testCaseDetail += `\n     ${stepIdx + 1}. ${step.trim()}`;
-          });
-        } else {
-          testCaseDetail += `\n     ${steps}`;
-        }
-      }
-      
-      testCaseDetail += `\n   EXPECTED RESULTS: ${expectedResults}`;
-      testCaseDetail += `\n   ----------------------------------------`;
-      
-      return testCaseDetail;
-    }).join('\n\n');
+      // Simplified format - just key fields
+      return `${idx + 1}. ${id} | ${module} | ${priority} | ${type} | ${title}`;
+    }).join('\n');
 
     const systemPrompt = summaryType === 'detailed'
-      ? `You are a senior QA expert specializing in healthcare systems with 10+ years of experience. 
-
-Your task is to provide a COMPREHENSIVE analysis of the test cases including:
-
-1. **FUNCTIONAL COVERAGE ANALYSIS**: Group test cases by modules/functionality
-2. **PRIORITY & RISK ASSESSMENT**: Analyze priority distribution and risk coverage
-3. **TEST SCENARIO DEPTH**: Evaluate completeness of test steps and expected results
-4. **EDGE CASES & NEGATIVE SCENARIOS**: Identify what edge cases are covered
-5. **AUTOMATION READINESS**: Assess automation vs manual distribution
-6. **CRITICAL GAPS**: Identify missing test scenarios that should exist
-7. **HEALTHCARE COMPLIANCE**: Note any regulatory/compliance testing gaps
-8. **INTEGRATION POINTS**: Identify inter-module dependencies that need testing
-
-Provide detailed insights with specific examples from the test cases. Be thorough and technical.`
-      : 'You are a QA expert specializing in healthcare systems. Provide a concise summary of the test cases in 2-3 sentences, highlighting the main functionality being tested and key scenarios covered.';
+      ? `You are a QA expert. Analyze test cases and provide a CONCISE summary covering:
+1. Modules tested and main functionality
+2. Priority distribution (P1/P2/P3)
+3. Test coverage gaps
+4. Key scenarios (positive, negative, edge cases)
+Keep it under 300 words.`
+      : 'You are a QA expert. Provide a concise summary of test cases in 2-3 sentences.';
 
     const userPrompt = summaryType === 'detailed' 
-      ? `Analyze the following healthcare test cases in detail. Provide comprehensive coverage analysis:\n\n${resultsText}`
-      : `Summarize the following test cases:\n\n${resultsText}`;
+      ? `Analyze these ${results.length} test cases. Group by module, note priority distribution, identify coverage gaps:\n\n${resultsText}`
+      : `Summarize these test cases:\n\n${resultsText}`;
 
     // Use Testleaf API for chat completion
     console.log('🔧 Testleaf Config Check:');
@@ -891,7 +855,7 @@ Provide detailed insights with specific examples from the test cases. Be thoroug
         { role: 'user', content: userPrompt }
       ],
       temperature: 0.2,
-      max_tokens: summaryType === 'detailed' ? 1000 : 300
+      max_tokens: summaryType === 'detailed' ? 400 : 200  // Reduced from 1000 to 400 to avoid large summaries
     }, {
       headers: {
         'Content-Type': 'application/json',
@@ -949,7 +913,7 @@ Provide detailed insights with specific examples from the test cases. Be thoroug
 // ======================== Test Prompt Endpoint ========================
 app.post('/api/test-prompt', async (req, res) => {
   try {
-    const { prompt, temperature = 0.2, maxTokens = 5000 } = req.body;
+    const { prompt, temperature = 0.5, maxTokens = 15000 } = req.body;
     
     if (!prompt) {
       return res.status(400).json({ error: 'Prompt is required' });
@@ -983,7 +947,10 @@ app.post('/api/test-prompt', async (req, res) => {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${AUTH_TOKEN}`
-      }
+      },
+      timeout: 300000, // 5 minutes timeout (instead of default 60s)
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity
     });
 
     // Check if response has expected structure (Testleaf API transaction response)
@@ -1197,7 +1164,7 @@ app.post('/api/search', async (req, res) => {
 // ======================== BM25 Search Endpoint ========================
 app.post('/api/search/bm25', async (req, res) => {
   try {
-    const { query, limit = 10, filters = {}, fields = ['title', 'description', 'steps', 'expectedResults', 'module'] } = req.body;
+    const { query, limit = 10, filters = {}, fields = ['id','title', 'description', 'steps', 'expectedResults', 'module'] } = req.body;
     
     if (!query) {
       return res.status(400).json({ error: 'Query is required' });
@@ -1330,7 +1297,7 @@ app.post('/api/search/hybrid', async (req, res) => {
       filters = {},
       bm25Weight = 0.5,
       vectorWeight = 0.5,
-      bm25Fields = ['title', 'description', 'steps', 'expectedResults', 'module']
+      bm25Fields = ['id','title', 'description', 'steps', 'expectedResults', 'module']
     } = req.body;
     
     if (!query) {
@@ -1457,12 +1424,15 @@ app.post('/api/search/hybrid', async (req, res) => {
 
     const queryVector = embeddingResponse.data.data[0].embedding;
 
+    // Ensure numCandidates >= limit for MongoDB vector search
+    const vectorNumCandidates = Math.max(searchLimit * 2, 200);
+
     const vectorPipeline = [
       {
         $vectorSearch: {
           queryVector,
           path: "embedding",
-          numCandidates: 100,
+          numCandidates: vectorNumCandidates,
           limit: searchLimit,
           index: process.env.VECTOR_INDEX_NAME
         }
@@ -1935,6 +1905,56 @@ app.post('/api/search/rerank', async (req, res) => {
     console.error('❌ Reranking error:', error);
     res.status(500).json({ 
       error: 'Reranking failed', 
+      details: error.message 
+    });
+  }
+});
+
+// Get the latest test case ID from the database
+app.get('/api/testcases/latest-id', async (req, res) => {
+  try {
+    const mongoClient = new MongoClient(process.env.MONGODB_URI, {
+      ssl: true,
+      tlsAllowInvalidCertificates: true,
+      tlsAllowInvalidHostnames: true,
+      serverSelectionTimeoutMS: 30000,
+    });
+
+    await mongoClient.connect();
+    const db = mongoClient.db(process.env.DB_NAME);
+    const collection = db.collection(process.env.COLLECTION_NAME);
+
+    // Find the highest numeric test case ID
+    const testCases = await collection.find({}, { projection: { id: 1 } }).toArray();
+    
+    let maxId = 0;
+    testCases.forEach(tc => {
+      if (tc.id) {
+        // Extract numeric part from TC_XXXX format
+        const match = tc.id.match(/TC_(\d+)/);
+        if (match) {
+          const numId = parseInt(match[1], 10);
+          if (numId > maxId) {
+            maxId = numId;
+          }
+        }
+      }
+    });
+
+    await mongoClient.close();
+
+    res.json({
+      success: true,
+      latestId: maxId,
+      nextId: maxId + 1,
+      nextTestCaseId: `TC_${String(maxId + 1).padStart(4, '0')}`,
+      totalTestCases: testCases.length
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching latest test case ID:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch latest test case ID', 
       details: error.message 
     });
   }

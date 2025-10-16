@@ -27,7 +27,7 @@ const USER_EMAIL = process.env.USER_EMAIL;
 const AUTH_TOKEN = process.env.AUTH_TOKEN;
 
 // BATCH PROCESSING CONFIGURATION - Optimized for Testleaf Batch API
-const BATCH_SIZE = 100; // Send 100 testcases per batch API call (Testleaf can handle larger batches)
+const BATCH_SIZE = 100; // Send 100 batches
 const CONCURRENT_LIMIT = 5; // Max 5 concurrent batch API calls (fewer but larger requests)
 const DELAY_BETWEEN_BATCHES = 1000; // 1000ms delay between batches (batch calls take longer)
 const MONGODB_BATCH_SIZE = 200; // Insert 200 documents at once
@@ -69,7 +69,7 @@ async function generateBatchEmbeddings(testcaseBatch, batchNumber, totalBatches,
               'Content-Type': 'application/json',
               ...(AUTH_TOKEN && { 'Authorization': `Bearer ${AUTH_TOKEN}` })
             },
-            timeout: 60000 // Longer timeout for batch requests
+            timeout: 300000 // Longer timeout for batch requests
           }
         );
 

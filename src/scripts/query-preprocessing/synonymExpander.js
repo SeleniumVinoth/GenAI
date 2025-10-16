@@ -313,7 +313,7 @@ export function expandSynonymsSmart(text, options = {}) {
 
   // Healthcare-preferred synonyms
   const preferredSynonyms = {
-    'patient': ['patient', 'individual'],  // Prefer 'patient' in healthcare
+    'patient': ['patient', 'individual', 'user'],  // Prefer 'patient' in healthcare
     'doctor': ['doctor', 'physician'],      // Prefer medical terms
     'create': ['register', 'add'],          // Healthcare context
     'update': ['modify', 'edit']
